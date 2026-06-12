@@ -1,0 +1,141 @@
+// Fixed-latency convolution DMA load engine core.
+//
+// The top-level CDMA has separate data and weight load channels. Each channel
+// consumes the AXI read stream for its selected phase and writes returned words
+// directly into its CBUF port.
+
+module cdma_core #(
+    parameter int ADDR_WIDTH       = 32,
+    parameter int AXI_DATA_WIDTH   = 32,
+    parameter int CBUF_WORD_WIDTH  = 32,
+    parameter int ELEMENT_WIDTH    = 8,
+    parameter int LEN_WIDTH        = 32,
+    parameter int CBUF_ADDR_WIDTH  = 16,
+    parameter int BANK_NUM         = 8,
+    parameter int BANK_SEL_WIDTH   = (BANK_NUM <= 2) ? 1 : $clog2(BANK_NUM),
+    parameter int BANK_ADDR_WIDTH  = 10,
+    parameter int AXI_BURST_LEN    = 8
+) (
+    input  logic                       clk,
+    input  logic                       rst_n,
+
+    input  logic                       data_start,
+    output logic                       data_busy,
+    output logic                       data_done,
+    output logic                       data_error,
+    output logic                       data_fill_request,
+    input  logic                       data_fill_done,
+    input  logic                       data_stream_txn_start,
+    input  logic                       data_stream_error,
+    input  logic                       data_stream_valid,
+    output logic                       data_stream_ready,
+    input  logic [AXI_DATA_WIDTH-1:0]      data_stream_data,
+    input  logic [LEN_WIDTH-1:0]       data_cfg_matrix_width,
+    input  logic [LEN_WIDTH-1:0]       data_cfg_matrix_height,
+    input  logic [LEN_WIDTH-1:0]       data_cfg_channel_count,
+    input  logic [CBUF_ADDR_WIDTH-1:0] data_cfg_dst_base,
+    output logic [LEN_WIDTH-1:0]       data_load_total_words,
+    output logic [ADDR_WIDTH-1:0]      data_load_last_addr,
+    output logic [ADDR_WIDTH-1:0]      data_mem_rd_addr,
+    output logic [BANK_NUM-1:0] data_cbuf_wr_bank_en,
+    output logic [(BANK_NUM*BANK_ADDR_WIDTH)-1:0] data_cbuf_wr_bank_addr,
+    output logic [(BANK_NUM*CBUF_WORD_WIDTH)-1:0] data_cbuf_wr_bank_data,
+
+    input  logic                       weight_start,
+    output logic                       weight_busy,
+    output logic                       weight_done,
+    output logic                       weight_error,
+    output logic                       weight_fill_request,
+    input  logic                       weight_fill_done,
+    input  logic                       weight_stream_txn_start,
+    input  logic                       weight_stream_error,
+    input  logic                       weight_stream_valid,
+    output logic                       weight_stream_ready,
+    input  logic [AXI_DATA_WIDTH-1:0]      weight_stream_data,
+    input  logic [LEN_WIDTH-1:0]       weight_cfg_matrix_width,
+    input  logic [LEN_WIDTH-1:0]       weight_cfg_matrix_height,
+    input  logic [LEN_WIDTH-1:0]       weight_cfg_channel_count,
+    input  logic [CBUF_ADDR_WIDTH-1:0] weight_cfg_dst_base,
+    output logic [LEN_WIDTH-1:0]       weight_load_total_words,
+    output logic [ADDR_WIDTH-1:0]      weight_load_last_addr,
+    output logic [ADDR_WIDTH-1:0]      weight_mem_rd_addr,
+    output logic [BANK_NUM-1:0] weight_cbuf_wr_bank_en,
+    output logic [(BANK_NUM*BANK_ADDR_WIDTH)-1:0] weight_cbuf_wr_bank_addr,
+    output logic [(BANK_NUM*CBUF_WORD_WIDTH)-1:0] weight_cbuf_wr_bank_data
+);
+
+    cdma_load_channel #(
+        .ADDR_WIDTH      (ADDR_WIDTH),
+        .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+        .CBUF_WORD_WIDTH (CBUF_WORD_WIDTH),
+        .ELEMENT_WIDTH   (ELEMENT_WIDTH),
+        .LEN_WIDTH       (LEN_WIDTH),
+        .CBUF_ADDR_WIDTH(CBUF_ADDR_WIDTH),
+        .BANK_NUM    (BANK_NUM),
+        .BANK_SEL_WIDTH (BANK_SEL_WIDTH),
+        .BANK_ADDR_WIDTH(BANK_ADDR_WIDTH),
+        .AXI_BURST_LEN  (AXI_BURST_LEN)
+    ) u_data_load_channel (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .start           (data_start),
+        .busy            (data_busy),
+        .done            (data_done),
+        .error           (data_error),
+        .fill_request    (data_fill_request),
+        .fill_done       (data_fill_done),
+        .cfg_matrix_width(data_cfg_matrix_width),
+        .cfg_matrix_height(data_cfg_matrix_height),
+        .cfg_channel_count(data_cfg_channel_count),
+        .cfg_dst_base    (data_cfg_dst_base),
+        .load_total_words(data_load_total_words),
+        .load_last_addr  (data_load_last_addr),
+        .mem_rd_addr     (data_mem_rd_addr),
+        .stream_txn_start(data_stream_txn_start),
+        .stream_error    (data_stream_error),
+        .stream_valid    (data_stream_valid),
+        .stream_ready    (data_stream_ready),
+        .stream_data     (data_stream_data),
+        .cbuf_wr_bank_en  (data_cbuf_wr_bank_en),
+        .cbuf_wr_bank_addr(data_cbuf_wr_bank_addr),
+        .cbuf_wr_bank_data(data_cbuf_wr_bank_data)
+    );
+
+    cdma_load_channel #(
+    .ADDR_WIDTH      (ADDR_WIDTH),
+    .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+    .CBUF_WORD_WIDTH (CBUF_WORD_WIDTH),
+    .ELEMENT_WIDTH   (ELEMENT_WIDTH),
+    .LEN_WIDTH       (LEN_WIDTH),
+    .CBUF_ADDR_WIDTH (CBUF_ADDR_WIDTH),
+    .BANK_NUM     (BANK_NUM),
+    .BANK_SEL_WIDTH  (BANK_SEL_WIDTH),
+    .BANK_ADDR_WIDTH (BANK_ADDR_WIDTH),
+    .AXI_BURST_LEN   (AXI_BURST_LEN)
+    ) u_weight_load_channel (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .start           (weight_start),
+        .busy            (weight_busy),
+        .done            (weight_done),
+        .error           (weight_error),
+        .fill_request    (weight_fill_request),
+        .fill_done       (weight_fill_done),
+        .cfg_matrix_width(weight_cfg_matrix_width),
+        .cfg_matrix_height(weight_cfg_matrix_height),
+        .cfg_channel_count(weight_cfg_channel_count),
+        .cfg_dst_base    (weight_cfg_dst_base),
+        .load_total_words(weight_load_total_words),
+        .load_last_addr  (weight_load_last_addr),
+        .mem_rd_addr     (weight_mem_rd_addr),
+        .stream_txn_start(weight_stream_txn_start),
+        .stream_error    (weight_stream_error),
+        .stream_valid    (weight_stream_valid),
+        .stream_ready    (weight_stream_ready),
+        .stream_data     (weight_stream_data),
+        .cbuf_wr_bank_en(weight_cbuf_wr_bank_en),
+        .cbuf_wr_bank_addr(weight_cbuf_wr_bank_addr),
+        .cbuf_wr_bank_data    (weight_cbuf_wr_bank_data)
+    );
+
+endmodule

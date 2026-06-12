@@ -1,0 +1,36 @@
+# Vivado / XSim generated files
+.Xil/
+.xsim*/
+xsim.dir/
+*.jou
+*.log
+*.pb
+*.str
+*.wdb
+*.vcd
+*.vpd
+
+# Vivado project generated output
+*.cache/
+*.gen/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.tmp/
+
+# Local editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+*.o
+*.elf
+*.bit
+*.bin
+*.ltx
+*.dcp
+*.rpt
+*.mcs
