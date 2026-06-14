@@ -23,16 +23,24 @@
 //   0x48 CSC_STRIDE_XY                [15:0] stride_x, [31:16] stride_y
 //   0x4c CSC_OUTPUT_WIDTH_HEIGHT      [15:0] width, [31:16] height
 //   0x50 CSC_OUTPUT_CHANNELS
+//   0x54 CACC_S_STATUS                read-only from hardware
+//   0x58 CACC_D_OP_ENABLE             bit 0 auto-clears after write
+//   0x5c CACC_D_DATAOUT_SIZE_0        [15:0] width, [31:16] height
+//   0x60 CACC_D_DATAOUT_SIZE_1        output channels
+//   0x64 CACC_D_DATAOUT_ADDR
+//   0x68 CACC_D_LINE_STRIDE
+//   0x6c CACC_D_SURF_STRIDE
+//   0x70 CACC_D_DATAOUT_MAP
 //
 // Status flag extension:
-//   CDMA_STATUS/CSC_STATUS[31]         sticky APB invalid-address access
-//   CDMA_STATUS/CSC_STATUS[30]         sticky APB write blocked while locked
+//   *_STATUS[31]                      sticky APB invalid-address access
+//   *_STATUS[30]                      sticky APB write blocked while locked
 // Write 1 to either status register bit to clear the corresponding flag.
 
 module apb3_slave #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
-    parameter int SLVREG_NUM = 21
+    parameter int SLVREG_NUM = 29
 ) (
     input  logic                  PCLK,
     input  logic                  PRESETn,
@@ -67,7 +75,15 @@ module apb3_slave #(
     output logic [DATA_WIDTH-1:0] CSC_KERNEL_WIDTH_HEIGHT,
     output logic [DATA_WIDTH-1:0] CSC_STRIDE_XY,
     output logic [DATA_WIDTH-1:0] CSC_OUTPUT_WIDTH_HEIGHT,
-    output logic [DATA_WIDTH-1:0] CSC_OUTPUT_CHANNELS
+    output logic [DATA_WIDTH-1:0] CSC_OUTPUT_CHANNELS,
+    input  logic [DATA_WIDTH-1:0] CACC_S_STATUS,
+    output logic [DATA_WIDTH-1:0] CACC_D_OP_ENABLE,
+    output logic [DATA_WIDTH-1:0] CACC_D_DATAOUT_SIZE_0,
+    output logic [DATA_WIDTH-1:0] CACC_D_DATAOUT_SIZE_1,
+    output logic [DATA_WIDTH-1:0] CACC_D_DATAOUT_ADDR,
+    output logic [DATA_WIDTH-1:0] CACC_D_LINE_STRIDE,
+    output logic [DATA_WIDTH-1:0] CACC_D_SURF_STRIDE,
+    output logic [DATA_WIDTH-1:0] CACC_D_DATAOUT_MAP
 );
 
     localparam int ADDR_LSB = $clog2(DATA_WIDTH / 8);
@@ -87,9 +103,13 @@ module apb3_slave #(
     logic write_sets_new_control_bit;
     logic clear_control_write;
     logic csc_start_write;
+    logic cacc_start_write;
+    logic csc_enable_write;
+    logic cacc_enable_write;
     logic control_write_allowed_while_locked;
     logic cdma_active;
     logic csc_active;
+    logic cacc_active;
     logic npu_locked;
     logic busy_write_blocked;
     logic invalid_access;
@@ -125,26 +145,32 @@ module apb3_slave #(
     assign write_to_status =
         valid_addr &&
         ((reg_idx == REG_IDX_WIDTH'(1)) ||
-         (reg_idx == REG_IDX_WIDTH'(11)));
+         (reg_idx == REG_IDX_WIDTH'(11)) ||
+         (reg_idx == REG_IDX_WIDTH'(21)));
 
     assign write_to_control =
         valid_addr &&
         ((reg_idx == REG_IDX_WIDTH'(0)) ||
-         (reg_idx == REG_IDX_WIDTH'(10)));
+         (reg_idx == REG_IDX_WIDTH'(10)) ||
+         (reg_idx == REG_IDX_WIDTH'(22)));
 
     assign cdma_active =
         CDMA_STATUS[0] || CDMA_STATUS[3] ||
         slv_reg[0][0] || slv_reg[0][1];
     assign csc_active =
         CSC_STATUS[1] || slv_reg[10][1];
-    assign npu_locked = cdma_active || csc_active;
+    assign cacc_active =
+        CACC_S_STATUS[1] || slv_reg[22][1];
+    assign npu_locked = cdma_active || csc_active || cacc_active;
 
     assign write_sets_new_control_bit =
         write_to_control &&
         (((reg_idx == REG_IDX_WIDTH'(0)) &&
           (((PWDATA[1:0] & ~slv_reg[0][1:0]) != 2'b00))) ||
          ((reg_idx == REG_IDX_WIDTH'(10)) &&
-          (((PWDATA[1:0] & ~slv_reg[10][1:0]) != 2'b00))));
+          (((PWDATA[1:0] & ~slv_reg[10][1:0]) != 2'b00))) ||
+         ((reg_idx == REG_IDX_WIDTH'(22)) &&
+          (((PWDATA[1:0] & ~slv_reg[22][1:0]) != 2'b00))));
 
     assign clear_control_write =
         write_to_control && !write_sets_new_control_bit;
@@ -154,9 +180,24 @@ module apb3_slave #(
         slv_reg[10][1] &&
         PWDATA[0] &&
         CSC_STATUS[0];
+    assign cacc_start_write =
+        (reg_idx == REG_IDX_WIDTH'(22)) &&
+        slv_reg[22][1] &&
+        PWDATA[0] &&
+        CACC_S_STATUS[0];
+    assign csc_enable_write =
+        (reg_idx == REG_IDX_WIDTH'(10)) &&
+        PWDATA[1];
+    assign cacc_enable_write =
+        (reg_idx == REG_IDX_WIDTH'(22)) &&
+        PWDATA[1];
 
     assign control_write_allowed_while_locked =
-        clear_control_write || csc_start_write;
+        clear_control_write ||
+        csc_start_write ||
+        cacc_start_write ||
+        csc_enable_write ||
+        cacc_enable_write;
 
     assign busy_write_blocked =
         do_access && PWRITE && valid_addr && npu_locked &&
@@ -188,6 +229,7 @@ module apb3_slave #(
         end else begin
             slv_reg[1]  <= status_with_apb_flags(CDMA_STATUS);
             slv_reg[11] <= status_with_apb_flags(CSC_STATUS);
+            slv_reg[21] <= status_with_apb_flags(CACC_S_STATUS);
 
             if (invalid_access) begin
                 apb_invalid_access_q <= 1'b1;
@@ -203,11 +245,14 @@ module apb3_slave #(
 
             // CSC_CONTROL[0] is op_start and is treated as a one-cycle pulse.
             slv_reg[10][0] <= 1'b0;
+            // CACC_D_OP_ENABLE[0] is op_start and is treated as a one-cycle pulse.
+            slv_reg[22][0] <= 1'b0;
 
             if (do_write) begin
                 unique case (reg_idx)
                     REG_IDX_WIDTH'(1),
-                    REG_IDX_WIDTH'(11): begin
+                    REG_IDX_WIDTH'(11),
+                    REG_IDX_WIDTH'(21): begin
                         // Hardware status is read-only. APB sticky flags above
                         // are write-one-to-clear through these addresses.
                     end
@@ -239,5 +284,12 @@ module apb3_slave #(
     assign CSC_STRIDE_XY           = slv_reg[18];
     assign CSC_OUTPUT_WIDTH_HEIGHT = slv_reg[19];
     assign CSC_OUTPUT_CHANNELS     = slv_reg[20];
+    assign CACC_D_OP_ENABLE        = slv_reg[22];
+    assign CACC_D_DATAOUT_SIZE_0   = slv_reg[23];
+    assign CACC_D_DATAOUT_SIZE_1   = slv_reg[24];
+    assign CACC_D_DATAOUT_ADDR     = slv_reg[25];
+    assign CACC_D_LINE_STRIDE      = slv_reg[26];
+    assign CACC_D_SURF_STRIDE      = slv_reg[27];
+    assign CACC_D_DATAOUT_MAP      = slv_reg[28];
 
 endmodule

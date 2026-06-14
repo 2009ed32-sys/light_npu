@@ -1,9 +1,11 @@
 `timescale 1ns/1ps
 // One MACCell.
 //
-// Minimal two-cycle MAC structure:
+// Minimal pipelined MAC structure:
 //   cycle 1: product_q[lane] <= data[lane] * weight[lane]
 //   cycle 2: lane_acc_q[lane] <= lane_acc_q[lane] + product_q[lane]
+//   cycle 3: pair_sum_q[pair] <= lane_acc_q[2N] + lane_acc_q[2N+1]
+//   cycle 4: psum_data_q <= pair_sum_q[0] + pair_sum_q[1] + ...
 //
 // The wider CMAC/CACC handshake will be refined after this datapath shape is
 // confirmed in synthesis.
@@ -42,37 +44,57 @@ module maccell #(
 );
 
     localparam int PRODUCT_WIDTH = ELEMENT_WIDTH * 2;
+    localparam int PAIR_SUM_NUM  = (MACLANE_NUM + 1) / 2;
 
     (* use_dsp = "yes" *) logic signed [PRODUCT_WIDTH-1:0] product_q [0:MACLANE_NUM-1];
     (* use_dsp = "yes" *) logic signed [PSUM_WIDTH-1:0] lane_acc_q [0:MACLANE_NUM-1];
+    logic signed [PSUM_WIDTH-1:0] pair_sum_q [0:PAIR_SUM_NUM-1];
 
     logic product_valid_q;
     logic product_clear_q;
     logic product_last_q;
     logic [TAG_WIDTH-1:0] product_tag_q;
 
+    logic lane_sum_req_q;
+    logic lane_sum_clear_q;
+    logic lane_sum_last_q;
+    logic [TAG_WIDTH-1:0] lane_sum_tag_q;
+
+    logic pair_sum_valid_q;
+    logic pair_sum_clear_q;
+    logic pair_sum_last_q;
+    logic [TAG_WIDTH-1:0] pair_sum_tag_q;
+
     logic psum_valid_q;
+    logic [PSUM_WIDTH-1:0] psum_data_q;
     logic psum_acc_clear_q;
     logic psum_acc_last_q;
     logic [TAG_WIDTH-1:0] psum_tag_q;
-    logic signed [PSUM_WIDTH-1:0] psum_sum_w;
+    logic signed [PSUM_WIDTH-1:0] pair_sum_total_w;
+    logic reduction_busy_w;
 
-    assign operand_ready = op_enable && (!psum_valid_q || psum_ready);
+    assign reduction_busy_w =
+        lane_sum_req_q || pair_sum_valid_q || psum_valid_q ||
+        (product_valid_q && product_last_q);
+
+    assign operand_ready = op_enable && !reduction_busy_w;
     assign op_ready = op_enable && operand_ready;
-    assign op_busy = op_enable && (product_valid_q || psum_valid_q);
+    assign op_busy =
+        op_enable &&
+        (product_valid_q || lane_sum_req_q || pair_sum_valid_q || psum_valid_q);
     assign op_done = psum_valid_q && psum_ready;
     assign op_error = 1'b0;
 
     assign psum_valid = psum_valid_q;
-    assign psum_data = psum_sum_w;
+    assign psum_data = psum_data_q;
     assign psum_acc_clear = psum_acc_clear_q;
     assign psum_acc_last = psum_acc_last_q;
     assign psum_tag = psum_tag_q;
 
     always_comb begin
-        psum_sum_w = '0;
-        for (int lane_idx = 0; lane_idx < MACLANE_NUM; lane_idx = lane_idx + 1) begin
-            psum_sum_w = psum_sum_w + lane_acc_q[lane_idx];
+        pair_sum_total_w = '0;
+        for (int pair_idx = 0; pair_idx < PAIR_SUM_NUM; pair_idx = pair_idx + 1) begin
+            pair_sum_total_w = pair_sum_total_w + pair_sum_q[pair_idx];
         end
     end
 
@@ -82,7 +104,16 @@ module maccell #(
             product_clear_q <= 1'b0;
             product_last_q <= 1'b0;
             product_tag_q <= '0;
+            lane_sum_req_q <= 1'b0;
+            lane_sum_clear_q <= 1'b0;
+            lane_sum_last_q <= 1'b0;
+            lane_sum_tag_q <= '0;
+            pair_sum_valid_q <= 1'b0;
+            pair_sum_clear_q <= 1'b0;
+            pair_sum_last_q <= 1'b0;
+            pair_sum_tag_q <= '0;
             psum_valid_q <= 1'b0;
+            psum_data_q <= '0;
             psum_acc_clear_q <= 1'b0;
             psum_acc_last_q <= 1'b0;
             psum_tag_q <= '0;
@@ -90,13 +121,25 @@ module maccell #(
             for (int lane_idx = 0; lane_idx < MACLANE_NUM; lane_idx = lane_idx + 1) begin
                 product_q[lane_idx] <= '0;
                 lane_acc_q[lane_idx] <= '0;
+            end
+            for (int pair_idx = 0; pair_idx < PAIR_SUM_NUM; pair_idx = pair_idx + 1) begin
+                pair_sum_q[pair_idx] <= '0;
             end
         end else if (!op_enable || op_start) begin
             product_valid_q <= 1'b0;
             product_clear_q <= 1'b0;
             product_last_q <= 1'b0;
             product_tag_q <= '0;
+            lane_sum_req_q <= 1'b0;
+            lane_sum_clear_q <= 1'b0;
+            lane_sum_last_q <= 1'b0;
+            lane_sum_tag_q <= '0;
+            pair_sum_valid_q <= 1'b0;
+            pair_sum_clear_q <= 1'b0;
+            pair_sum_last_q <= 1'b0;
+            pair_sum_tag_q <= '0;
             psum_valid_q <= 1'b0;
+            psum_data_q <= '0;
             psum_acc_clear_q <= 1'b0;
             psum_acc_last_q <= 1'b0;
             psum_tag_q <= '0;
@@ -105,9 +148,37 @@ module maccell #(
                 product_q[lane_idx] <= '0;
                 lane_acc_q[lane_idx] <= '0;
             end
+            for (int pair_idx = 0; pair_idx < PAIR_SUM_NUM; pair_idx = pair_idx + 1) begin
+                pair_sum_q[pair_idx] <= '0;
+            end
         end else begin
             if (psum_valid_q && psum_ready) begin
                 psum_valid_q <= 1'b0;
+            end
+
+            if (pair_sum_valid_q && (!psum_valid_q || psum_ready)) begin
+                psum_valid_q <= 1'b1;
+                psum_data_q <= PSUM_WIDTH'(pair_sum_total_w);
+                psum_acc_clear_q <= pair_sum_clear_q;
+                psum_acc_last_q <= pair_sum_last_q;
+                psum_tag_q <= pair_sum_tag_q;
+                pair_sum_valid_q <= 1'b0;
+            end
+
+            if (lane_sum_req_q && !pair_sum_valid_q) begin
+                for (int pair_idx = 0; pair_idx < PAIR_SUM_NUM; pair_idx = pair_idx + 1) begin
+                    if (((pair_idx*2) + 1) < MACLANE_NUM) begin
+                        pair_sum_q[pair_idx] <=
+                            lane_acc_q[pair_idx*2] + lane_acc_q[(pair_idx*2) + 1];
+                    end else begin
+                        pair_sum_q[pair_idx] <= lane_acc_q[pair_idx*2];
+                    end
+                end
+                pair_sum_valid_q <= 1'b1;
+                pair_sum_clear_q <= lane_sum_clear_q;
+                pair_sum_last_q <= lane_sum_last_q;
+                pair_sum_tag_q <= lane_sum_tag_q;
+                lane_sum_req_q <= 1'b0;
             end
 
             if (product_valid_q) begin
@@ -121,10 +192,10 @@ module maccell #(
                 end
 
                 if (product_last_q) begin
-                    psum_valid_q <= 1'b1;
-                    psum_acc_clear_q <= product_clear_q;
-                    psum_acc_last_q <= product_last_q;
-                    psum_tag_q <= product_tag_q;
+                    lane_sum_req_q <= 1'b1;
+                    lane_sum_clear_q <= product_clear_q;
+                    lane_sum_last_q <= product_last_q;
+                    lane_sum_tag_q <= product_tag_q;
                 end
             end
 

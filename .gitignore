@@ -34,3 +34,8 @@ Desktop.ini
 *.dcp
 *.rpt
 *.mcs
+
+# folder
+/csb
+/convcore
+.synth*/

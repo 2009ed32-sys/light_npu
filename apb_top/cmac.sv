@@ -37,7 +37,13 @@ module cmac #(
     output logic [(MACCELL_NUM*PSUM_WIDTH)-1:0] psum_data,
     output logic psum_acc_clear,
     output logic psum_acc_last,
-    output logic [TAG_WIDTH-1:0] psum_tag
+    output logic [TAG_WIDTH-1:0] psum_tag,
+
+    output logic cacc_prepare_valid,
+    output logic cacc_prepare_read,
+    output logic [MACCELL_NUM-1:0] cacc_prepare_mask,
+    output logic cacc_prepare_acc_clear,
+    output logic cacc_prepare_acc_last
 );
 
     localparam int MACCELL_OPERAND_WIDTH = MACLANE_NUM * ELEMENT_WIDTH;
@@ -52,6 +58,7 @@ module cmac #(
     logic [MACCELL_NUM-1:0] cell_psum_acc_last_w;
     logic [(MACCELL_NUM*TAG_WIDTH)-1:0] cell_psum_tag_w;
     logic [(MACCELL_NUM*PSUM_WIDTH)-1:0] cell_psum_data_w;
+    logic last_operand_accept_w;
 
     genvar cell_idx;
     generate
@@ -106,6 +113,13 @@ module cmac #(
 
     assign maccell_ready = &cell_operand_ready_w;
 
+    assign last_operand_accept_w =
+        op_enable &&
+        maccell_in_valid &&
+        maccell_ready &&
+        maccell_acc_last &&
+        (|maccell_valid_mask);
+
     assign psum_valid = |cell_psum_valid_w;
     assign psum_valid_mask = cell_psum_valid_w;
     assign psum_data = cell_psum_data_w;
@@ -113,7 +127,13 @@ module cmac #(
     assign psum_acc_last = |cell_psum_acc_last_w;
     assign psum_tag = cell_psum_tag_w[0 +: TAG_WIDTH];
 
-    // TODO: implement MACLane multiply, per-MACCell product sum, and
-    // valid/ready pipeline.
+    assign cacc_prepare_valid = last_operand_accept_w;
+    assign cacc_prepare_read = last_operand_accept_w && !maccell_acc_clear;
+    assign cacc_prepare_mask =
+        last_operand_accept_w ? maccell_valid_mask : '0;
+    assign cacc_prepare_acc_clear =
+        last_operand_accept_w && maccell_acc_clear;
+    assign cacc_prepare_acc_last =
+        last_operand_accept_w && maccell_acc_last;
 
 endmodule

@@ -19,6 +19,7 @@ module apb_top #(
     parameter int MACCELL_NUM      = 8,
     parameter int MACLANE_NUM      = CBUF_WORD_WIDTH / ELEMENT_WIDTH,
     parameter int CSC_TAG_WIDTH    = 32,
+    parameter int CMAC_PSUM_WIDTH  = 32,
     parameter int DEBUG_WIDTH      = 256
 ) (
     input  logic                          PCLK,
@@ -42,6 +43,14 @@ module apb_top #(
     input  logic                          axi_txn_done,
     input  logic                          axi_error,
     output logic                          axi_stream_sel,
+    output logic                          sdp_write_valid,
+    input  logic                          sdp_write_ready,
+    output logic [ADDR_WIDTH-1:0]         sdp_write_addr,
+    output logic [CMAC_PSUM_WIDTH-1:0]    sdp_write_data,
+    output logic [(CMAC_PSUM_WIDTH/8)-1:0] sdp_write_strb,
+    output logic                          sdp_write_last,
+    input  logic                          sdp_write_done,
+    input  logic                          sdp_write_error,
     output logic [DEBUG_WIDTH-1:0] debug_port,
     output logic                   debug_valid
 );
@@ -67,11 +76,19 @@ module apb_top #(
     logic [APB_DATA_WIDTH-1:0] csc_stride_xy_w;
     logic [APB_DATA_WIDTH-1:0] csc_output_width_height_w;
     logic [APB_DATA_WIDTH-1:0] csc_output_channels_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_s_status_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_op_enable_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_dataout_size_0_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_dataout_size_1_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_dataout_addr_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_line_stride_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_surf_stride_w;
+    logic [APB_DATA_WIDTH-1:0] cacc_d_dataout_map_w;
 
     apb3_slave #(
         .ADDR_WIDTH(APB_ADDR_WIDTH),
         .DATA_WIDTH(APB_DATA_WIDTH),
-        .SLVREG_NUM(21)
+        .SLVREG_NUM(29)
     ) u_apb_csb (
         .PCLK                   (PCLK),
         .PRESETn                (PRESETn),
@@ -104,7 +121,15 @@ module apb_top #(
         .CSC_KERNEL_WIDTH_HEIGHT(csc_kernel_width_height_w),
         .CSC_STRIDE_XY          (csc_stride_xy_w),
         .CSC_OUTPUT_WIDTH_HEIGHT(csc_output_width_height_w),
-        .CSC_OUTPUT_CHANNELS    (csc_output_channels_w)
+        .CSC_OUTPUT_CHANNELS    (csc_output_channels_w),
+        .CACC_S_STATUS          (cacc_s_status_w),
+        .CACC_D_OP_ENABLE       (cacc_d_op_enable_w),
+        .CACC_D_DATAOUT_SIZE_0  (cacc_d_dataout_size_0_w),
+        .CACC_D_DATAOUT_SIZE_1  (cacc_d_dataout_size_1_w),
+        .CACC_D_DATAOUT_ADDR    (cacc_d_dataout_addr_w),
+        .CACC_D_LINE_STRIDE     (cacc_d_line_stride_w),
+        .CACC_D_SURF_STRIDE     (cacc_d_surf_stride_w),
+        .CACC_D_DATAOUT_MAP     (cacc_d_dataout_map_w)
     );
 
     convcore #(
@@ -120,6 +145,7 @@ module apb_top #(
         .MACCELL_NUM     (MACCELL_NUM),
         .MACLANE_NUM     (MACLANE_NUM),
         .CSC_TAG_WIDTH   (CSC_TAG_WIDTH),
+        .CMAC_PSUM_WIDTH (CMAC_PSUM_WIDTH),
         .DEBUG_WIDTH     (DEBUG_WIDTH)
     ) u_convcore (
         .clk                    (PCLK),
@@ -147,6 +173,14 @@ module apb_top #(
         .CSC_STRIDE_XY          (csc_stride_xy_w),
         .CSC_OUTPUT_WIDTH_HEIGHT(csc_output_width_height_w),
         .CSC_OUTPUT_CHANNELS    (csc_output_channels_w),
+        .CACC_D_OP_ENABLE       (cacc_d_op_enable_w),
+        .CACC_S_STATUS          (cacc_s_status_w),
+        .CACC_D_DATAOUT_SIZE_0  (cacc_d_dataout_size_0_w),
+        .CACC_D_DATAOUT_SIZE_1  (cacc_d_dataout_size_1_w),
+        .CACC_D_DATAOUT_ADDR    (cacc_d_dataout_addr_w),
+        .CACC_D_LINE_STRIDE     (cacc_d_line_stride_w),
+        .CACC_D_SURF_STRIDE     (cacc_d_surf_stride_w),
+        .CACC_D_DATAOUT_MAP     (cacc_d_dataout_map_w),
 
         .axi_load_start         (axi_load_start),
         .axi_txn_addr           (axi_txn_addr),
@@ -156,7 +190,15 @@ module apb_top #(
         .axi_stream_data        (axi_stream_data),
         .axi_txn_done           (axi_txn_done),
         .axi_error              (axi_error),
-        .axi_stream_sel         (axi_stream_sel)
+        .axi_stream_sel         (axi_stream_sel),
+        .sdp_write_valid        (sdp_write_valid),
+        .sdp_write_ready        (sdp_write_ready),
+        .sdp_write_addr         (sdp_write_addr),
+        .sdp_write_data         (sdp_write_data),
+        .sdp_write_strb         (sdp_write_strb),
+        .sdp_write_last         (sdp_write_last),
+        .sdp_write_done         (sdp_write_done),
+        .sdp_write_error        (sdp_write_error)
     );
 
 endmodule

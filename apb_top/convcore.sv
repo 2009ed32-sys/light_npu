@@ -17,6 +17,7 @@ module convcore #(
     parameter int MACCELL_NUM      = 8,
     parameter int MACLANE_NUM      = CBUF_WORD_WIDTH / ELEMENT_WIDTH,
     parameter int CSC_TAG_WIDTH    = 32,
+    parameter int CMAC_PSUM_WIDTH  = 32,
     parameter int DEBUG_WIDTH      = 256
 ) (
     input  logic                       clk,
@@ -44,6 +45,14 @@ module convcore #(
     input  logic [CSB_DATA_WIDTH-1:0]  CSC_STRIDE_XY,
     input  logic [CSB_DATA_WIDTH-1:0]  CSC_OUTPUT_WIDTH_HEIGHT,
     input  logic [CSB_DATA_WIDTH-1:0]  CSC_OUTPUT_CHANNELS,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_OP_ENABLE,
+    output logic [CSB_DATA_WIDTH-1:0]  CACC_S_STATUS,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_DATAOUT_SIZE_0,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_DATAOUT_SIZE_1,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_DATAOUT_ADDR,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_LINE_STRIDE,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_SURF_STRIDE,
+    input  logic [CSB_DATA_WIDTH-1:0]  CACC_D_DATAOUT_MAP,
 
     output logic                       axi_load_start,
     output logic [ADDR_WIDTH-1:0]      axi_txn_addr,
@@ -53,7 +62,16 @@ module convcore #(
     input  logic [AXI_DATA_WIDTH-1:0]  axi_stream_data,
     input  logic                       axi_txn_done,
     input  logic                       axi_error,
-    output logic                       axi_stream_sel
+    output logic                       axi_stream_sel,
+
+    output logic                       sdp_write_valid,
+    input  logic                       sdp_write_ready,
+    output logic [ADDR_WIDTH-1:0]      sdp_write_addr,
+    output logic [CMAC_PSUM_WIDTH-1:0] sdp_write_data,
+    output logic [(CMAC_PSUM_WIDTH/8)-1:0] sdp_write_strb,
+    output logic                       sdp_write_last,
+    input  logic                       sdp_write_done,
+    input  logic                       sdp_write_error
 );
 
     localparam int CBUF_DATA_DEPTH   = 1024;
@@ -62,7 +80,6 @@ module convcore #(
         BANK_NUM * MACLANE_NUM * ELEMENT_WIDTH;
     localparam int MACCELL_VEC_WIDTH =
         MACCELL_NUM * MACLANE_NUM * ELEMENT_WIDTH;
-    localparam int CMAC_PSUM_WIDTH = 32;
     localparam int CMAC_PSUM_VEC_WIDTH =
         MACCELL_NUM * CMAC_PSUM_WIDTH;
     localparam int CBUF_DATA_BANK_ADDR_WIDTH =
@@ -116,6 +133,25 @@ module convcore #(
     logic                       cmac_psum_acc_clear_unused;
     logic                       cmac_psum_acc_last_unused;
     logic [CSC_TAG_WIDTH-1:0]   cmac_psum_tag_unused;
+    logic                       cmac_psum_ready_w;
+    logic                       cmac_cacc_prepare_valid_w;
+    logic                       cmac_cacc_prepare_read_w;
+    logic [MACCELL_NUM-1:0]     cmac_cacc_prepare_mask_w;
+    logic                       cmac_cacc_prepare_acc_clear_w;
+    logic                       cmac_cacc_prepare_acc_last_w;
+    logic                       cacc_ready_unused;
+    logic                       cacc_busy_unused;
+    logic                       cacc_done_unused;
+    logic                       cacc_error_unused;
+    logic                       cacc_sdp_valid_w;
+    logic                       cacc_sdp_ready_w;
+    logic [MACCELL_NUM-1:0]     cacc_sdp_mask_w;
+    logic [CMAC_PSUM_VEC_WIDTH-1:0] cacc_sdp_data_w;
+    logic                       cacc_sdp_last_w;
+    logic                       sdp_ready_unused;
+    logic                       sdp_busy_unused;
+    logic                       sdp_done_unused;
+    logic                       sdp_error_unused;
 
     always_comb begin
         CSC_STATUS    = '0;
@@ -123,6 +159,12 @@ module convcore #(
         CSC_STATUS[1] = csc_busy;
         CSC_STATUS[2] = csc_done;
         CSC_STATUS[3] = csc_error;
+
+        CACC_S_STATUS    = '0;
+        CACC_S_STATUS[0] = cacc_ready_unused && sdp_ready_unused;
+        CACC_S_STATUS[1] = cacc_busy_unused || sdp_busy_unused;
+        CACC_S_STATUS[2] = sdp_done_unused;
+        CACC_S_STATUS[3] = cacc_error_unused || sdp_error_unused;
     end
 
     cdma #(
@@ -246,12 +288,86 @@ module convcore #(
         .maccell_acc_last   (csc_maccell_acc_last_w),
         .maccell_tag        (csc_maccell_tag_w),
         .psum_valid         (cmac_psum_valid_unused),
-        .psum_ready         (1'b1),
+        .psum_ready         (cmac_psum_ready_w),
         .psum_valid_mask    (cmac_psum_valid_mask_unused),
         .psum_data          (cmac_psum_data_unused),
         .psum_acc_clear     (cmac_psum_acc_clear_unused),
         .psum_acc_last      (cmac_psum_acc_last_unused),
-        .psum_tag           (cmac_psum_tag_unused)
+        .psum_tag           (cmac_psum_tag_unused),
+        .cacc_prepare_valid (cmac_cacc_prepare_valid_w),
+        .cacc_prepare_read  (cmac_cacc_prepare_read_w),
+        .cacc_prepare_mask  (cmac_cacc_prepare_mask_w),
+        .cacc_prepare_acc_clear(cmac_cacc_prepare_acc_clear_w),
+        .cacc_prepare_acc_last(cmac_cacc_prepare_acc_last_w)
+    );
+
+    cacc #(
+        .MACCELL_NUM(MACCELL_NUM),
+        .PSUM_WIDTH (CMAC_PSUM_WIDTH),
+        .TAG_WIDTH  (CSC_TAG_WIDTH),
+        .CFG_WIDTH  (CSB_DATA_WIDTH)
+    ) u_cacc (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .op_enable        (CACC_D_OP_ENABLE[1]),
+        .op_start         (CACC_D_OP_ENABLE[0]),
+        .op_ready         (cacc_ready_unused),
+        .op_busy          (cacc_busy_unused),
+        .op_done          (cacc_done_unused),
+        .op_error         (cacc_error_unused),
+        .d_dataout_size_0 (CACC_D_DATAOUT_SIZE_0),
+        .d_dataout_size_1 (CACC_D_DATAOUT_SIZE_1),
+        .d_dataout_addr   (CACC_D_DATAOUT_ADDR),
+        .d_line_stride    (CACC_D_LINE_STRIDE),
+        .d_surf_stride    (CACC_D_SURF_STRIDE),
+        .d_dataout_map    (CACC_D_DATAOUT_MAP),
+        .prepare_valid    (cmac_cacc_prepare_valid_w),
+        .prepare_read     (cmac_cacc_prepare_read_w),
+        .prepare_mask     (cmac_cacc_prepare_mask_w),
+        .prepare_acc_clear(cmac_cacc_prepare_acc_clear_w),
+        .prepare_acc_last (cmac_cacc_prepare_acc_last_w),
+        .psum_valid       (cmac_psum_valid_unused),
+        .psum_ready       (cmac_psum_ready_w),
+        .psum_valid_mask  (cmac_psum_valid_mask_unused),
+        .psum_data        (cmac_psum_data_unused),
+        .psum_acc_clear   (cmac_psum_acc_clear_unused),
+        .psum_acc_last    (cmac_psum_acc_last_unused),
+        .psum_tag         (cmac_psum_tag_unused),
+        .sdp_valid        (cacc_sdp_valid_w),
+        .sdp_ready        (cacc_sdp_ready_w),
+        .sdp_mask         (cacc_sdp_mask_w),
+        .sdp_data         (cacc_sdp_data_w),
+        .sdp_last         (cacc_sdp_last_w)
+    );
+
+    sdp #(
+        .MACCELL_NUM      (MACCELL_NUM),
+        .PSUM_WIDTH       (CMAC_PSUM_WIDTH),
+        .ADDR_WIDTH       (ADDR_WIDTH),
+        .OUTPUT_ADDR_SHIFT(2)
+    ) u_sdp (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .op_enable        (CACC_D_OP_ENABLE[1]),
+        .op_start         (CACC_D_OP_ENABLE[0]),
+        .op_ready         (sdp_ready_unused),
+        .op_busy          (sdp_busy_unused),
+        .op_done          (sdp_done_unused),
+        .op_error         (sdp_error_unused),
+        .output_base_addr (ADDR_WIDTH'(CACC_D_DATAOUT_ADDR)),
+        .cacc_valid       (cacc_sdp_valid_w),
+        .cacc_ready       (cacc_sdp_ready_w),
+        .cacc_mask        (cacc_sdp_mask_w),
+        .cacc_data        (cacc_sdp_data_w),
+        .cacc_last        (cacc_sdp_last_w),
+        .write_req_valid  (sdp_write_valid),
+        .write_req_ready  (sdp_write_ready),
+        .write_req_addr   (sdp_write_addr),
+        .write_req_data   (sdp_write_data),
+        .write_req_strb   (sdp_write_strb),
+        .write_req_last   (sdp_write_last),
+        .write_done       (sdp_write_done),
+        .write_error      (sdp_write_error)
     );
 
     (* keep_hierarchy = "yes", dont_touch = "true" *) cbuf #(

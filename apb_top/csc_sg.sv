@@ -658,42 +658,49 @@ module csc_sg #(
                     sched_s4_packet_q <= push_packet_w;
 
                     sched_s3_valid_q <= sched_s2_valid_q;
-                    sched_s3_q.data_elem_start <= sched_s3_data_elem_start_w;
-                    sched_s3_q.weight_elem_start <= sched_s3_weight_elem_start_w;
-                    sched_s3_q.tag_value <= sched_s3_tag_value_w;
-                    sched_s3_q.kernel_x <= sched_s2_q.kernel_x;
-                    sched_s3_q.kernel_y <= sched_s2_q.kernel_y;
-                    sched_s3_q.channel_group <= sched_s2_q.channel_group;
-                    sched_s3_q.ocg <= sched_s2_q.ocg;
+                    sched_s3_q <= '{
+                        data_elem_start:   sched_s3_data_elem_start_w,
+                        weight_elem_start: sched_s3_weight_elem_start_w,
+                        tag_value:         sched_s3_tag_value_w,
+                        kernel_x:          sched_s2_q.kernel_x,
+                        kernel_y:          sched_s2_q.kernel_y,
+                        channel_group:     sched_s2_q.channel_group,
+                        ocg:               sched_s2_q.ocg
+                    };
 
                     sched_s2_valid_q <= sched_s1_valid_q;
-                    sched_s2_q.data_group_index <= sched_s2_data_group_index_w;
-                    sched_s2_q.weight_group_partial <=
-                        sched_s2_weight_group_partial_w;
-                    sched_s2_q.output_pos <= sched_s2_output_pos_w;
-                    sched_s2_q.kernel_x <= sched_s1_q.kernel_x;
-                    sched_s2_q.kernel_y <= sched_s1_q.kernel_y;
-                    sched_s2_q.channel_group <= sched_s1_q.channel_group;
-                    sched_s2_q.ocg <= sched_s1_q.ocg;
+                    sched_s2_q <= '{
+                        data_group_index:    sched_s2_data_group_index_w,
+                        weight_group_partial:sched_s2_weight_group_partial_w,
+                        output_pos:          sched_s2_output_pos_w,
+                        kernel_x:            sched_s1_q.kernel_x,
+                        kernel_y:            sched_s1_q.kernel_y,
+                        channel_group:       sched_s1_q.channel_group,
+                        ocg:                 sched_s1_q.ocg
+                    };
 
                     sched_s1_valid_q <= sched_s0_valid_q;
-                    sched_s1_q.input_x <= sched_s1_input_x_w;
-                    sched_s1_q.input_y <= sched_s1_input_y_w;
-                    sched_s1_q.kernel_index <= sched_s1_kernel_index_w;
-                    sched_s1_q.out_x <= sched_s0_q.out_x;
-                    sched_s1_q.out_y <= sched_s0_q.out_y;
-                    sched_s1_q.kernel_x <= sched_s0_q.kernel_x;
-                    sched_s1_q.kernel_y <= sched_s0_q.kernel_y;
-                    sched_s1_q.channel_group <= sched_s0_q.channel_group;
-                    sched_s1_q.ocg <= sched_s0_q.ocg;
+                    sched_s1_q <= '{
+                        input_x:       sched_s1_input_x_w,
+                        input_y:       sched_s1_input_y_w,
+                        kernel_index:  sched_s1_kernel_index_w,
+                        out_x:         sched_s0_q.out_x,
+                        out_y:         sched_s0_q.out_y,
+                        kernel_x:      sched_s0_q.kernel_x,
+                        kernel_y:      sched_s0_q.kernel_y,
+                        channel_group: sched_s0_q.channel_group,
+                        ocg:           sched_s0_q.ocg
+                    };
 
                     sched_s0_valid_q <= scheduler_accept_w;
-                    sched_s0_q.out_x <= out_x_q;
-                    sched_s0_q.out_y <= out_y_q;
-                    sched_s0_q.kernel_x <= kernel_x_q;
-                    sched_s0_q.kernel_y <= kernel_y_q;
-                    sched_s0_q.channel_group <= channel_group_q;
-                    sched_s0_q.ocg <= ocg_q;
+                    sched_s0_q <= '{
+                        out_x:         out_x_q,
+                        out_y:         out_y_q,
+                        kernel_x:      kernel_x_q,
+                        kernel_y:      kernel_y_q,
+                        channel_group: channel_group_q,
+                        ocg:           ocg_q
+                    };
                 end
 
                 if (scheduler_accept_w) begin

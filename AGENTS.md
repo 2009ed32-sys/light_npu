@@ -80,3 +80,7 @@ Store Markdown design notes directly under `C:\Users\2009e\npusources`.
 - Do not create `.md` design notes inside block-specific source directories such as `convcore/`, `axi_master/`, or `tb/`.
 - Keep debug-related Markdown plans under the `npusources` root as well, for example `debug_maclane_compare_plan.md`.
 - When architecture changes meaningfully, update the relevant root-level Markdown note instead of creating scattered copies in subdirectories.
+- For NVDLA documentation questions, prefer checking these references first:
+  - https://nvdla.org/hw/v1/ias/unit_description.html
+  - https://nvdla.org/hw/v1/hwarch.html
+  - https://github.com/nvdla/hw/blob/master/vmod/nvdla/cdma/NV_NVDLA_CDMA_cvt.v

@@ -35,11 +35,21 @@ module tb_apb_top_smoke;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_STRIDE_XY  = 32'h48;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_WH  = 32'h4c;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_CH  = 32'h50;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_STATUS    = 32'h54;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_OP_ENABLE = 32'h58;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_0    = 32'h5c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_1    = 32'h60;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_ADDR      = 32'h64;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_LINE_STRIDE = 32'h68;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SURF_STRIDE = 32'h6c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_MAP       = 32'h70;
 
     localparam logic [APB_DATA_WIDTH-1:0] CDMA_DATA_START    = 32'h0000_0001;
     localparam logic [APB_DATA_WIDTH-1:0] CDMA_WEIGHT_START  = 32'h0000_0002;
     localparam logic [APB_DATA_WIDTH-1:0] CSC_ENABLE         = 32'h0000_0002;
     localparam logic [APB_DATA_WIDTH-1:0] CSC_ENABLE_START   = 32'h0000_0003;
+    localparam logic [APB_DATA_WIDTH-1:0] CACC_ENABLE        = 32'h0000_0002;
+    localparam logic [APB_DATA_WIDTH-1:0] CACC_ENABLE_START  = 32'h0000_0003;
 
     logic clk;
     logic rst_n;
@@ -62,6 +72,15 @@ module tb_apb_top_smoke;
     logic axi_txn_done;
     logic axi_error;
     logic axi_stream_sel;
+    logic sdp_write_valid;
+    logic sdp_write_ready;
+    logic [ADDR_WIDTH-1:0] sdp_write_addr;
+    logic [31:0] sdp_write_data;
+    logic [3:0] sdp_write_strb;
+    logic sdp_write_last;
+    logic sdp_write_done;
+    logic sdp_write_error;
+    int sdp_write_count;
 
     integer errors;
     integer timeout;
@@ -100,7 +119,15 @@ module tb_apb_top_smoke;
         .axi_stream_data  (axi_stream_data),
         .axi_txn_done     (axi_txn_done),
         .axi_error        (axi_error),
-        .axi_stream_sel   (axi_stream_sel)
+        .axi_stream_sel   (axi_stream_sel),
+        .sdp_write_valid  (sdp_write_valid),
+        .sdp_write_ready  (sdp_write_ready),
+        .sdp_write_addr   (sdp_write_addr),
+        .sdp_write_data   (sdp_write_data),
+        .sdp_write_strb   (sdp_write_strb),
+        .sdp_write_last   (sdp_write_last),
+        .sdp_write_done   (sdp_write_done),
+        .sdp_write_error  (sdp_write_error)
     );
 
     initial begin
@@ -113,6 +140,32 @@ module tb_apb_top_smoke;
             cycle_count <= 0;
         end else begin
             cycle_count <= cycle_count + 1;
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            sdp_write_ready <= 1'b0;
+            sdp_write_done <= 1'b0;
+            sdp_write_error <= 1'b0;
+            sdp_write_count <= 0;
+        end else begin
+            sdp_write_ready <= 1'b1;
+            sdp_write_done <= 1'b0;
+            sdp_write_error <= 1'b0;
+
+            if (sdp_write_valid && sdp_write_ready) begin
+                $display("SDP write[%0d] addr=0x%08h data=0x%08h strb=0x%0h last=%0b",
+                         sdp_write_count,
+                         sdp_write_addr,
+                         sdp_write_data,
+                         sdp_write_strb,
+                         sdp_write_last);
+                sdp_write_count <= sdp_write_count + 1;
+                if (sdp_write_last) begin
+                    sdp_write_done <= 1'b1;
+                end
+            end
         end
     end
 
@@ -519,10 +572,18 @@ module tb_apb_top_smoke;
         apb_write(REG_CSC_STRIDE_XY, {16'd1, 16'd1});
         apb_write(REG_CSC_OUTPUT_WH, {16'd1, 16'd1});
         apb_write(REG_CSC_OUTPUT_CH, 32'd1);
+        apb_write(REG_CACC_SIZE_0, {16'd1, 16'd1});
+        apb_write(REG_CACC_SIZE_1, 32'd1);
+        apb_write(REG_CACC_ADDR, 32'd0);
+        apb_write(REG_CACC_LINE_STRIDE, 32'd1);
+        apb_write(REG_CACC_SURF_STRIDE, 32'd1);
+        apb_write(REG_CACC_MAP, 32'd0);
 
         expect_read(REG_CSC_ATOMICS, 32'd1);
         expect_read(REG_CSC_OUTPUT_CH, 32'd1);
 
+        apb_write(REG_CACC_OP_ENABLE, CACC_ENABLE);
+        wait_status_bit(REG_CACC_STATUS, 32'h0000_0001, "CACC ready");
         apb_write(REG_CSC_CONTROL, CSC_ENABLE);
         wait_status_bit(REG_CSC_STATUS, 32'h0000_0001, "CSC ready");
 
@@ -530,12 +591,15 @@ module tb_apb_top_smoke;
         fork
             wait_cmac_results(csc_start_cycle, 1, 1, 1, 1, 1, "1x1/1x1");
             begin
+                apb_write(REG_CACC_OP_ENABLE, CACC_ENABLE_START);
                 apb_write(REG_CSC_CONTROL, CSC_ENABLE_START);
                 wait_status_bit(REG_CSC_STATUS, 32'h0000_0004, "CSC done");
+                wait_status_bit(REG_CACC_STATUS, 32'h0000_0004, "CACC/SDP done");
             end
         join
 
         apb_write(REG_CSC_CONTROL, 32'h0000_0000);
+        apb_write(REG_CACC_OP_ENABLE, 32'h0000_0000);
         repeat (8) @(posedge clk);
 
         $display("Starting extended CMAC test: input=5x5 kernel=3x3 channels=4 outputs=3x3");
@@ -583,10 +647,18 @@ module tb_apb_top_smoke;
         apb_write(REG_CSC_STRIDE_XY, {16'd1, 16'd1});
         apb_write(REG_CSC_OUTPUT_WH, {16'd3, 16'd3});
         apb_write(REG_CSC_OUTPUT_CH, 32'd1);
+        apb_write(REG_CACC_SIZE_0, {16'd3, 16'd3});
+        apb_write(REG_CACC_SIZE_1, 32'd1);
+        apb_write(REG_CACC_ADDR, 32'd0);
+        apb_write(REG_CACC_LINE_STRIDE, 32'd3);
+        apb_write(REG_CACC_SURF_STRIDE, 32'd9);
+        apb_write(REG_CACC_MAP, 32'd0);
 
         expect_read(REG_CSC_ATOMICS, 32'd81);
         expect_read(REG_CSC_OUTPUT_CH, 32'd1);
 
+        apb_write(REG_CACC_OP_ENABLE, CACC_ENABLE);
+        wait_status_bit(REG_CACC_STATUS, 32'h0000_0001, "CACC 5x5/3x3 ready");
         apb_write(REG_CSC_CONTROL, CSC_ENABLE);
         wait_status_bit(REG_CSC_STATUS, 32'h0000_0001, "CSC 5x5/3x3 ready");
 
@@ -594,8 +666,10 @@ module tb_apb_top_smoke;
         fork
             wait_cmac_results(csc_start_cycle, 9, 5, 3, 3, 3, "5x5/3x3");
             begin
+                apb_write(REG_CACC_OP_ENABLE, CACC_ENABLE_START);
                 apb_write(REG_CSC_CONTROL, CSC_ENABLE_START);
                 wait_status_bit(REG_CSC_STATUS, 32'h0000_0004, "CSC 5x5/3x3 done");
+                wait_status_bit(REG_CACC_STATUS, 32'h0000_0004, "CACC/SDP 5x5/3x3 done");
             end
         join
 
