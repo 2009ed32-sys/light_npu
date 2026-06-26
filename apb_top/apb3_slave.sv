@@ -8,29 +8,31 @@
 //   0x0c DATA_MATRIX_HEIGHT
 //   0x10 DATA_CHANNEL_COUNT
 //   0x14 DATA_DST_BASE
-//   0x18 WEIGHT_MATRIX_WIDTH
-//   0x1c WEIGHT_MATRIX_HEIGHT
-//   0x20 WEIGHT_CHANNEL_COUNT
-//   0x24 WEIGHT_DST_BASE
-//   0x28 CSC_CONTROL                  bit 0 auto-clears after write
-//   0x2c CSC_STATUS                   read-only from hardware
-//   0x30 CSC_ATOMICS
-//   0x34 CSC_DATA_BASE
-//   0x38 CSC_WEIGHT_BASE
-//   0x3c CSC_INPUT_WIDTH_HEIGHT       [15:0] width, [31:16] height
-//   0x40 CSC_INPUT_CHANNELS
-//   0x44 CSC_KERNEL_WIDTH_HEIGHT      [15:0] width, [31:16] height
-//   0x48 CSC_STRIDE_XY                [15:0] stride_x, [31:16] stride_y
-//   0x4c CSC_OUTPUT_WIDTH_HEIGHT      [15:0] width, [31:16] height
-//   0x50 CSC_OUTPUT_CHANNELS
-//   0x54 CACC_S_STATUS                read-only from hardware
-//   0x58 CACC_D_OP_ENABLE             bit 0 auto-clears after write
-//   0x5c CACC_D_DATAOUT_SIZE_0        [15:0] width, [31:16] height
-//   0x60 CACC_D_DATAOUT_SIZE_1        output channels
-//   0x64 CACC_D_DATAOUT_ADDR
-//   0x68 CACC_D_LINE_STRIDE
-//   0x6c CACC_D_SURF_STRIDE
-//   0x70 CACC_D_DATAOUT_MAP
+//   0x18 DATA_SRC_BASE_ADDR           DDR read byte address for data CDMA
+//   0x1c WEIGHT_MATRIX_WIDTH
+//   0x20 WEIGHT_MATRIX_HEIGHT
+//   0x24 WEIGHT_CHANNEL_COUNT
+//   0x28 WEIGHT_DST_BASE
+//   0x2c WEIGHT_SRC_BASE_ADDR         DDR read byte address for weight CDMA
+//   0x30 CSC_CONTROL                  bit 0 auto-clears after write
+//   0x34 CSC_STATUS                   read-only from hardware
+//   0x38 CSC_ATOMICS
+//   0x3c CSC_DATA_BASE
+//   0x40 CSC_WEIGHT_BASE
+//   0x44 CSC_INPUT_WIDTH_HEIGHT       [15:0] width, [31:16] height
+//   0x48 CSC_INPUT_CHANNELS
+//   0x4c CSC_KERNEL_WIDTH_HEIGHT      [15:0] width, [31:16] height
+//   0x50 CSC_STRIDE_XY                [15:0] stride_x, [31:16] stride_y
+//   0x54 CSC_OUTPUT_WIDTH_HEIGHT      [15:0] width, [31:16] height
+//   0x58 CSC_OUTPUT_CHANNELS
+//   0x5c CACC_S_STATUS                read-only from hardware
+//   0x60 CACC_D_OP_ENABLE             bit 0 auto-clears after write
+//   0x64 CACC_D_DATAOUT_SIZE_0        [15:0] width, [31:16] height
+//   0x68 CACC_D_DATAOUT_SIZE_1        output channels
+//   0x6c CACC_D_DATAOUT_ADDR
+//   0x70 CACC_D_LINE_STRIDE
+//   0x74 CACC_D_SURF_STRIDE
+//   0x78 CACC_D_DATAOUT_MAP
 //
 // Status flag extension:
 //   *_STATUS[31]                      sticky APB invalid-address access
@@ -40,7 +42,7 @@
 module apb3_slave #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
-    parameter int SLVREG_NUM = 29
+    parameter int SLVREG_NUM = 31
 ) (
     input  logic                  PCLK,
     input  logic                  PRESETn,
@@ -61,10 +63,12 @@ module apb3_slave #(
     output logic [DATA_WIDTH-1:0] DATA_MATRIX_HEIGHT,
     output logic [DATA_WIDTH-1:0] DATA_CHANNEL_COUNT,
     output logic [DATA_WIDTH-1:0] DATA_DST_BASE,
+    output logic [DATA_WIDTH-1:0] DATA_SRC_BASE_ADDR,
     output logic [DATA_WIDTH-1:0] WEIGHT_MATRIX_WIDTH,
     output logic [DATA_WIDTH-1:0] WEIGHT_MATRIX_HEIGHT,
     output logic [DATA_WIDTH-1:0] WEIGHT_CHANNEL_COUNT,
     output logic [DATA_WIDTH-1:0] WEIGHT_DST_BASE,
+    output logic [DATA_WIDTH-1:0] WEIGHT_SRC_BASE_ADDR,
     output logic [DATA_WIDTH-1:0] CSC_CONTROL,
     input  logic [DATA_WIDTH-1:0] CSC_STATUS,
     output logic [DATA_WIDTH-1:0] CSC_ATOMICS,
@@ -145,51 +149,51 @@ module apb3_slave #(
     assign write_to_status =
         valid_addr &&
         ((reg_idx == REG_IDX_WIDTH'(1)) ||
-         (reg_idx == REG_IDX_WIDTH'(11)) ||
-         (reg_idx == REG_IDX_WIDTH'(21)));
+         (reg_idx == REG_IDX_WIDTH'(13)) ||
+         (reg_idx == REG_IDX_WIDTH'(23)));
 
     assign write_to_control =
         valid_addr &&
         ((reg_idx == REG_IDX_WIDTH'(0)) ||
-         (reg_idx == REG_IDX_WIDTH'(10)) ||
-         (reg_idx == REG_IDX_WIDTH'(22)));
+         (reg_idx == REG_IDX_WIDTH'(12)) ||
+         (reg_idx == REG_IDX_WIDTH'(24)));
 
     assign cdma_active =
         CDMA_STATUS[0] || CDMA_STATUS[3] ||
         slv_reg[0][0] || slv_reg[0][1];
     assign csc_active =
-        CSC_STATUS[1] || slv_reg[10][1];
+        CSC_STATUS[1] || slv_reg[12][1];
     assign cacc_active =
-        CACC_S_STATUS[1] || slv_reg[22][1];
+        CACC_S_STATUS[1] || slv_reg[24][1];
     assign npu_locked = cdma_active || csc_active || cacc_active;
 
     assign write_sets_new_control_bit =
         write_to_control &&
         (((reg_idx == REG_IDX_WIDTH'(0)) &&
           (((PWDATA[1:0] & ~slv_reg[0][1:0]) != 2'b00))) ||
-         ((reg_idx == REG_IDX_WIDTH'(10)) &&
-          (((PWDATA[1:0] & ~slv_reg[10][1:0]) != 2'b00))) ||
-         ((reg_idx == REG_IDX_WIDTH'(22)) &&
-          (((PWDATA[1:0] & ~slv_reg[22][1:0]) != 2'b00))));
+         ((reg_idx == REG_IDX_WIDTH'(12)) &&
+          (((PWDATA[1:0] & ~slv_reg[12][1:0]) != 2'b00))) ||
+         ((reg_idx == REG_IDX_WIDTH'(24)) &&
+          (((PWDATA[1:0] & ~slv_reg[24][1:0]) != 2'b00))));
 
     assign clear_control_write =
         write_to_control && !write_sets_new_control_bit;
 
     assign csc_start_write =
-        (reg_idx == REG_IDX_WIDTH'(10)) &&
-        slv_reg[10][1] &&
+        (reg_idx == REG_IDX_WIDTH'(12)) &&
+        slv_reg[12][1] &&
         PWDATA[0] &&
         CSC_STATUS[0];
     assign cacc_start_write =
-        (reg_idx == REG_IDX_WIDTH'(22)) &&
-        slv_reg[22][1] &&
+        (reg_idx == REG_IDX_WIDTH'(24)) &&
+        slv_reg[24][1] &&
         PWDATA[0] &&
         CACC_S_STATUS[0];
     assign csc_enable_write =
-        (reg_idx == REG_IDX_WIDTH'(10)) &&
+        (reg_idx == REG_IDX_WIDTH'(12)) &&
         PWDATA[1];
     assign cacc_enable_write =
-        (reg_idx == REG_IDX_WIDTH'(22)) &&
+        (reg_idx == REG_IDX_WIDTH'(24)) &&
         PWDATA[1];
 
     assign control_write_allowed_while_locked =
@@ -228,8 +232,8 @@ module apb3_slave #(
             apb_busy_write_q     <= 1'b0;
         end else begin
             slv_reg[1]  <= status_with_apb_flags(CDMA_STATUS);
-            slv_reg[11] <= status_with_apb_flags(CSC_STATUS);
-            slv_reg[21] <= status_with_apb_flags(CACC_S_STATUS);
+            slv_reg[13] <= status_with_apb_flags(CSC_STATUS);
+            slv_reg[23] <= status_with_apb_flags(CACC_S_STATUS);
 
             if (invalid_access) begin
                 apb_invalid_access_q <= 1'b1;
@@ -244,15 +248,15 @@ module apb3_slave #(
             end
 
             // CSC_CONTROL[0] is op_start and is treated as a one-cycle pulse.
-            slv_reg[10][0] <= 1'b0;
+            slv_reg[12][0] <= 1'b0;
             // CACC_D_OP_ENABLE[0] is op_start and is treated as a one-cycle pulse.
-            slv_reg[22][0] <= 1'b0;
+            slv_reg[24][0] <= 1'b0;
 
             if (do_write) begin
                 unique case (reg_idx)
                     REG_IDX_WIDTH'(1),
-                    REG_IDX_WIDTH'(11),
-                    REG_IDX_WIDTH'(21): begin
+                    REG_IDX_WIDTH'(13),
+                    REG_IDX_WIDTH'(23): begin
                         // Hardware status is read-only. APB sticky flags above
                         // are write-one-to-clear through these addresses.
                     end
@@ -270,26 +274,28 @@ module apb3_slave #(
     assign DATA_MATRIX_HEIGHT      = slv_reg[3];
     assign DATA_CHANNEL_COUNT      = slv_reg[4];
     assign DATA_DST_BASE           = slv_reg[5];
-    assign WEIGHT_MATRIX_WIDTH     = slv_reg[6];
-    assign WEIGHT_MATRIX_HEIGHT    = slv_reg[7];
-    assign WEIGHT_CHANNEL_COUNT    = slv_reg[8];
-    assign WEIGHT_DST_BASE         = slv_reg[9];
-    assign CSC_CONTROL             = slv_reg[10];
-    assign CSC_ATOMICS             = slv_reg[12];
-    assign CSC_DATA_BASE           = slv_reg[13];
-    assign CSC_WEIGHT_BASE         = slv_reg[14];
-    assign CSC_INPUT_WIDTH_HEIGHT  = slv_reg[15];
-    assign CSC_INPUT_CHANNELS      = slv_reg[16];
-    assign CSC_KERNEL_WIDTH_HEIGHT = slv_reg[17];
-    assign CSC_STRIDE_XY           = slv_reg[18];
-    assign CSC_OUTPUT_WIDTH_HEIGHT = slv_reg[19];
-    assign CSC_OUTPUT_CHANNELS     = slv_reg[20];
-    assign CACC_D_OP_ENABLE        = slv_reg[22];
-    assign CACC_D_DATAOUT_SIZE_0   = slv_reg[23];
-    assign CACC_D_DATAOUT_SIZE_1   = slv_reg[24];
-    assign CACC_D_DATAOUT_ADDR     = slv_reg[25];
-    assign CACC_D_LINE_STRIDE      = slv_reg[26];
-    assign CACC_D_SURF_STRIDE      = slv_reg[27];
-    assign CACC_D_DATAOUT_MAP      = slv_reg[28];
+    assign DATA_SRC_BASE_ADDR      = slv_reg[6];
+    assign WEIGHT_MATRIX_WIDTH     = slv_reg[7];
+    assign WEIGHT_MATRIX_HEIGHT    = slv_reg[8];
+    assign WEIGHT_CHANNEL_COUNT    = slv_reg[9];
+    assign WEIGHT_DST_BASE         = slv_reg[10];
+    assign WEIGHT_SRC_BASE_ADDR    = slv_reg[11];
+    assign CSC_CONTROL             = slv_reg[12];
+    assign CSC_ATOMICS             = slv_reg[14];
+    assign CSC_DATA_BASE           = slv_reg[15];
+    assign CSC_WEIGHT_BASE         = slv_reg[16];
+    assign CSC_INPUT_WIDTH_HEIGHT  = slv_reg[17];
+    assign CSC_INPUT_CHANNELS      = slv_reg[18];
+    assign CSC_KERNEL_WIDTH_HEIGHT = slv_reg[19];
+    assign CSC_STRIDE_XY           = slv_reg[20];
+    assign CSC_OUTPUT_WIDTH_HEIGHT = slv_reg[21];
+    assign CSC_OUTPUT_CHANNELS     = slv_reg[22];
+    assign CACC_D_OP_ENABLE        = slv_reg[24];
+    assign CACC_D_DATAOUT_SIZE_0   = slv_reg[25];
+    assign CACC_D_DATAOUT_SIZE_1   = slv_reg[26];
+    assign CACC_D_DATAOUT_ADDR     = slv_reg[27];
+    assign CACC_D_LINE_STRIDE      = slv_reg[28];
+    assign CACC_D_SURF_STRIDE      = slv_reg[29];
+    assign CACC_D_DATAOUT_MAP      = slv_reg[30];
 
 endmodule

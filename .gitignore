@@ -39,3 +39,11 @@ Desktop.ini
 /csb
 /convcore
 .synth*/
+/ambaref/
+/ambaref.Zip
+__pycache__/
+vivado_log_check/*.csv
+
+# Keep only the concise project readme in this repository snapshot
+*.md
+!read.md

@@ -20,29 +20,31 @@ module tb_apb_top_smoke;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_DATA_HEIGHT    = 32'h0c;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_DATA_CH        = 32'h10;
     localparam logic [APB_ADDR_WIDTH-1:0] REG_DATA_BASE      = 32'h14;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_WIDTH   = 32'h18;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_HEIGHT  = 32'h1c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_CH      = 32'h20;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_BASE    = 32'h24;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_CONTROL    = 32'h28;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_STATUS     = 32'h2c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_ATOMICS    = 32'h30;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_DATA_BASE  = 32'h34;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_WEIGHT_BASE = 32'h38;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_INPUT_WH   = 32'h3c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_INPUT_CH   = 32'h40;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_KERNEL_WH  = 32'h44;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_STRIDE_XY  = 32'h48;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_WH  = 32'h4c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_CH  = 32'h50;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_STATUS    = 32'h54;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_OP_ENABLE = 32'h58;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_0    = 32'h5c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_1    = 32'h60;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_ADDR      = 32'h64;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_LINE_STRIDE = 32'h68;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SURF_STRIDE = 32'h6c;
-    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_MAP       = 32'h70;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_DATA_SRC_BASE  = 32'h18;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_WIDTH   = 32'h1c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_HEIGHT  = 32'h20;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_CH      = 32'h24;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_BASE    = 32'h28;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_WEIGHT_SRC_BASE = 32'h2c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_CONTROL    = 32'h30;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_STATUS     = 32'h34;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_ATOMICS    = 32'h38;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_DATA_BASE  = 32'h3c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_WEIGHT_BASE = 32'h40;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_INPUT_WH   = 32'h44;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_INPUT_CH   = 32'h48;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_KERNEL_WH  = 32'h4c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_STRIDE_XY  = 32'h50;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_WH  = 32'h54;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CSC_OUTPUT_CH  = 32'h58;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_STATUS    = 32'h5c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_OP_ENABLE = 32'h60;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_0    = 32'h64;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SIZE_1    = 32'h68;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_ADDR      = 32'h6c;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_LINE_STRIDE = 32'h70;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_SURF_STRIDE = 32'h74;
+    localparam logic [APB_ADDR_WIDTH-1:0] REG_CACC_MAP       = 32'h78;
 
     localparam logic [APB_DATA_WIDTH-1:0] CDMA_DATA_START    = 32'h0000_0001;
     localparam logic [APB_DATA_WIDTH-1:0] CDMA_WEIGHT_START  = 32'h0000_0002;
@@ -50,6 +52,8 @@ module tb_apb_top_smoke;
     localparam logic [APB_DATA_WIDTH-1:0] CSC_ENABLE_START   = 32'h0000_0003;
     localparam logic [APB_DATA_WIDTH-1:0] CACC_ENABLE        = 32'h0000_0002;
     localparam logic [APB_DATA_WIDTH-1:0] CACC_ENABLE_START  = 32'h0000_0003;
+    localparam logic [ADDR_WIDTH-1:0] DATA_SRC_BASE_ADDR     = 32'h0100_0000;
+    localparam logic [ADDR_WIDTH-1:0] WEIGHT_SRC_BASE_ADDR   = 32'h0200_0000;
 
     logic clk;
     logic rst_n;
@@ -63,7 +67,7 @@ module tb_apb_top_smoke;
     logic PREADY;
     logic PSLVERR;
 
-    logic axi_load_start;
+    wire axi_load_start;
     logic [ADDR_WIDTH-1:0] axi_txn_addr;
     logic axi_init_txn;
     logic axi_stream_valid;
@@ -71,7 +75,7 @@ module tb_apb_top_smoke;
     logic [AXI_DATA_WIDTH-1:0] axi_stream_data;
     logic axi_txn_done;
     logic axi_error;
-    logic axi_stream_sel;
+    wire axi_stream_sel;
     logic sdp_write_valid;
     logic sdp_write_ready;
     logic [ADDR_WIDTH-1:0] sdp_write_addr;
@@ -111,7 +115,6 @@ module tb_apb_top_smoke;
         .PRDATA           (PRDATA),
         .PREADY           (PREADY),
         .PSLVERR          (PSLVERR),
-        .axi_load_start   (axi_load_start),
         .axi_txn_addr     (axi_txn_addr),
         .axi_init_txn     (axi_init_txn),
         .axi_stream_valid (axi_stream_valid),
@@ -119,7 +122,6 @@ module tb_apb_top_smoke;
         .axi_stream_data  (axi_stream_data),
         .axi_txn_done     (axi_txn_done),
         .axi_error        (axi_error),
-        .axi_stream_sel   (axi_stream_sel),
         .sdp_write_valid  (sdp_write_valid),
         .sdp_write_ready  (sdp_write_ready),
         .sdp_write_addr   (sdp_write_addr),
@@ -129,6 +131,26 @@ module tb_apb_top_smoke;
         .sdp_write_done   (sdp_write_done),
         .sdp_write_error  (sdp_write_error)
     );
+
+    apb3_protocol_checker #(
+        .ADDR_WIDTH(APB_ADDR_WIDTH),
+        .DATA_WIDTH(APB_DATA_WIDTH),
+        .ZERO_WAIT(1'b1)
+    ) u_apb_protocol_checker (
+        .PCLK(clk),
+        .PRESETn(rst_n),
+        .PSEL(PSEL),
+        .PENABLE(PENABLE),
+        .PWRITE(PWRITE),
+        .PADDR(PADDR),
+        .PWDATA(PWDATA),
+        .PRDATA(PRDATA),
+        .PREADY(PREADY),
+        .PSLVERR(PSLVERR)
+    );
+
+    assign axi_load_start = dut.axi_load_start_unused;
+    assign axi_stream_sel = dut.axi_stream_sel_unused;
 
     initial begin
         clk = 1'b0;
@@ -473,14 +495,26 @@ module tb_apb_top_smoke;
         int beat_idx;
         int burst_idx;
         int unsigned base_word;
+        logic [ADDR_WIDTH-1:0] src_base;
+        logic [ADDR_WIDTH-1:0] relative_addr;
         logic sel;
         begin
             for (burst_idx = 0; burst_idx < burst_count; burst_idx = burst_idx + 1) begin
                 @(posedge axi_init_txn);
                 sel = axi_stream_sel;
-                base_word = axi_txn_addr >> 2;
-                $display("AXI burst start %0d/%0d sel=%0d addr=0x%08h base_word=%0d beats=8",
-                         burst_idx + 1, burst_count, sel, axi_txn_addr, base_word);
+                src_base = sel ? WEIGHT_SRC_BASE_ADDR : DATA_SRC_BASE_ADDR;
+                if (axi_txn_addr < src_base) begin
+                    $display("ERROR AXI txn addr below source base sel=%0d addr=0x%08h src_base=0x%08h",
+                             sel, axi_txn_addr, src_base);
+                    errors = errors + 1;
+                    relative_addr = '0;
+                end else begin
+                    relative_addr = axi_txn_addr - src_base;
+                end
+                base_word = relative_addr >> 2;
+                $display("AXI burst start %0d/%0d sel=%0d addr=0x%08h src_base=0x%08h base_word=%0d beats=8",
+                         burst_idx + 1, burst_count, sel, axi_txn_addr,
+                         src_base, base_word);
 
                 @(posedge clk);
                 for (beat_idx = 0; beat_idx < 8; beat_idx = beat_idx + 1) begin
@@ -533,13 +567,17 @@ module tb_apb_top_smoke;
         apb_write(REG_DATA_HEIGHT, 32'd1);
         apb_write(REG_DATA_CH, 32'd4);
         apb_write(REG_DATA_BASE, 32'd0);
+        apb_write(REG_DATA_SRC_BASE, DATA_SRC_BASE_ADDR);
         apb_write(REG_WEIGHT_WIDTH, 32'd8);
         apb_write(REG_WEIGHT_HEIGHT, 32'd1);
         apb_write(REG_WEIGHT_CH, 32'd4);
         apb_write(REG_WEIGHT_BASE, 32'd0);
+        apb_write(REG_WEIGHT_SRC_BASE, WEIGHT_SRC_BASE_ADDR);
 
         expect_read(REG_DATA_WIDTH, 32'd1);
+        expect_read(REG_DATA_SRC_BASE, DATA_SRC_BASE_ADDR);
         expect_read(REG_WEIGHT_WIDTH, 32'd8);
+        expect_read(REG_WEIGHT_SRC_BASE, WEIGHT_SRC_BASE_ADDR);
 
         fork
             drive_bursts(1);
@@ -608,13 +646,17 @@ module tb_apb_top_smoke;
         apb_write(REG_DATA_HEIGHT, 32'd5);
         apb_write(REG_DATA_CH, 32'd4);
         apb_write(REG_DATA_BASE, 32'd0);
+        apb_write(REG_DATA_SRC_BASE, DATA_SRC_BASE_ADDR);
         apb_write(REG_WEIGHT_WIDTH, 32'd72);
         apb_write(REG_WEIGHT_HEIGHT, 32'd1);
         apb_write(REG_WEIGHT_CH, 32'd4);
         apb_write(REG_WEIGHT_BASE, 32'd0);
+        apb_write(REG_WEIGHT_SRC_BASE, WEIGHT_SRC_BASE_ADDR);
 
         expect_read(REG_DATA_WIDTH, 32'd5);
+        expect_read(REG_DATA_SRC_BASE, DATA_SRC_BASE_ADDR);
         expect_read(REG_WEIGHT_WIDTH, 32'd72);
+        expect_read(REG_WEIGHT_SRC_BASE, WEIGHT_SRC_BASE_ADDR);
 
         fork
             drive_bursts(4);

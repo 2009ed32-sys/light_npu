@@ -57,9 +57,15 @@ module cdma_load_channel #(
     localparam int CHANNEL_GROUP_SHIFT = $clog2(CHANNELS_PER_WORD);
     localparam int AXI_BURST_LEN_SHIFT =
         (AXI_BURST_LEN <= 1) ? 0 : $clog2(AXI_BURST_LEN);
+    localparam int CFG_DIM_WIDTH = 8;
+    localparam int CFG_AREA_WIDTH = CFG_DIM_WIDTH * 2;
+    localparam int CFG_CHANNEL_GROUP_WIDTH = CFG_DIM_WIDTH + 1;
+    localparam int CFG_TOTAL_WORD_WIDTH =
+        CFG_AREA_WIDTH + CFG_CHANNEL_GROUP_WIDTH;
 
     typedef enum logic [2:0] {
         ST_IDLE,
+        ST_PREP,
         ST_RUN,
         ST_DRAIN,
         ST_DONE,
@@ -85,6 +91,12 @@ module cdma_load_channel #(
 
     logic [CBUF_ADDR_WIDTH-1:0] dst_base_q;
     logic [CBUF_ADDR_WIDTH-1:0] dst_base_d;
+    logic [CFG_DIM_WIDTH-1:0] cfg_matrix_width_q;
+    logic [CFG_DIM_WIDTH-1:0] cfg_matrix_width_d;
+    logic [CFG_DIM_WIDTH-1:0] cfg_matrix_height_q;
+    logic [CFG_DIM_WIDTH-1:0] cfg_matrix_height_d;
+    logic [CFG_DIM_WIDTH-1:0] cfg_channel_count_q;
+    logic [CFG_DIM_WIDTH-1:0] cfg_channel_count_d;
 
     logic start_q;
     logic start_pulse;
@@ -96,26 +108,36 @@ module cdma_load_channel #(
     logic [BANK_NUM-1:0] cbuf_addrgen_gather_valid;
     logic [LEN_WIDTH-1:0] calc_total_words_w;
 
-    function automatic logic [LEN_WIDTH-1:0] calc_channel_groups(
-        input logic [LEN_WIDTH-1:0] channel_count
+    function automatic logic [CFG_CHANNEL_GROUP_WIDTH-1:0] calc_channel_groups(
+        input logic [CFG_DIM_WIDTH-1:0] channel_count
     );
+        logic [CFG_CHANNEL_GROUP_WIDTH-1:0] rounded_channel_count;
         begin
+            rounded_channel_count =
+                CFG_CHANNEL_GROUP_WIDTH'(channel_count) +
+                CFG_CHANNEL_GROUP_WIDTH'(CHANNELS_PER_WORD - 1'b1);
             calc_channel_groups =
-                (channel_count + LEN_WIDTH'(CHANNELS_PER_WORD - 1'b1)) >>
-                CHANNEL_GROUP_SHIFT;
+                rounded_channel_count >> CHANNEL_GROUP_SHIFT;
         end
     endfunction
 
     function automatic logic [LEN_WIDTH-1:0] calc_total_words(
-        input logic [LEN_WIDTH-1:0] matrix_width,
-        input logic [LEN_WIDTH-1:0] matrix_height,
-        input logic [LEN_WIDTH-1:0] channel_count
+        input logic [CFG_DIM_WIDTH-1:0] matrix_width,
+        input logic [CFG_DIM_WIDTH-1:0] matrix_height,
+        input logic [CFG_DIM_WIDTH-1:0] channel_count
     );
+        logic [CFG_AREA_WIDTH-1:0] matrix_area;
+        logic [CFG_CHANNEL_GROUP_WIDTH-1:0] channel_groups;
+        logic [CFG_TOTAL_WORD_WIDTH-1:0] total_words_narrow;
         begin
-            calc_total_words =
-                matrix_width *
-                matrix_height *
-                calc_channel_groups(channel_count);
+            matrix_area =
+                CFG_AREA_WIDTH'(matrix_width) *
+                CFG_AREA_WIDTH'(matrix_height);
+            channel_groups = calc_channel_groups(channel_count);
+            total_words_narrow =
+                CFG_TOTAL_WORD_WIDTH'(matrix_area) *
+                CFG_TOTAL_WORD_WIDTH'(channel_groups);
+            calc_total_words = LEN_WIDTH'(total_words_narrow);
         end
     endfunction
 
@@ -164,7 +186,11 @@ module cdma_load_channel #(
     assign stream_fire        = stream_write && !stream_error;
     assign cbuf_addrgen_clear = start_pulse || stream_error;
     assign calc_total_words_w =
-        calc_total_words(cfg_matrix_width, cfg_matrix_height, cfg_channel_count);
+        calc_total_words(
+            cfg_matrix_width_q,
+            cfg_matrix_height_q,
+            cfg_channel_count_q
+        );
     assign load_total_words   = total_words_q;
     assign load_last_addr     = calc_last_addr(total_words_q);
 
@@ -202,6 +228,9 @@ module cdma_load_channel #(
         txn_start_count_d       = txn_start_count_q;
         txn_start_write_count_d = txn_start_write_count_q;
         dst_base_d              = dst_base_q;
+        cfg_matrix_width_d      = cfg_matrix_width_q;
+        cfg_matrix_height_d     = cfg_matrix_height_q;
+        cfg_channel_count_d     = cfg_channel_count_q;
         return_count_after_stream = return_count_q;
         write_count_after_stream  = write_count_q;
 
@@ -225,10 +254,21 @@ module cdma_load_channel #(
                 txn_start_write_count_d = '0;
 
                 if (start_pulse) begin
+                    cfg_matrix_width_d  = cfg_matrix_width[CFG_DIM_WIDTH-1:0];
+                    cfg_matrix_height_d = cfg_matrix_height[CFG_DIM_WIDTH-1:0];
+                    cfg_channel_count_d = cfg_channel_count[CFG_DIM_WIDTH-1:0];
+                    dst_base_d          = cfg_dst_base;
+                    state_d             = ST_PREP;
+                end
+            end
+
+            ST_PREP: begin
+                if (start_pulse) begin
+                    state_d = ST_ERROR;
+                end else begin
                     total_words_d = calc_total_words_w;
                     total_stream_words_d =
                         calc_total_stream_words(calc_total_words_w);
-                    dst_base_d    = cfg_dst_base;
 
                     if (calc_total_words_w == '0) begin
                         state_d = ST_DONE;
@@ -292,6 +332,9 @@ module cdma_load_channel #(
             txn_start_count_q <= '0;
             txn_start_write_count_q <= '0;
             dst_base_q        <= '0;
+            cfg_matrix_width_q <= '0;
+            cfg_matrix_height_q <= '0;
+            cfg_channel_count_q <= '0;
             start_q           <= 1'b0;
         end else begin
             state_q           <= state_d;
@@ -302,6 +345,9 @@ module cdma_load_channel #(
             txn_start_count_q <= txn_start_count_d;
             txn_start_write_count_q <= txn_start_write_count_d;
             dst_base_q        <= dst_base_d;
+            cfg_matrix_width_q <= cfg_matrix_width_d;
+            cfg_matrix_height_q <= cfg_matrix_height_d;
+            cfg_channel_count_q <= cfg_channel_count_d;
             start_q           <= start;
         end
     end

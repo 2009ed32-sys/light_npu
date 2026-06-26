@@ -19,32 +19,6 @@ module axi_master_dram_tb;
     logic m00_axi_txn_done;
     logic m00_axi_error;
 
-    logic [0:0] m00_axi_awid;
-    logic [ADDR_WIDTH-1:0] m00_axi_awaddr;
-    logic [7:0] m00_axi_awlen;
-    logic [2:0] m00_axi_awsize;
-    logic [1:0] m00_axi_awburst;
-    logic m00_axi_awlock;
-    logic [3:0] m00_axi_awcache;
-    logic [2:0] m00_axi_awprot;
-    logic [3:0] m00_axi_awqos;
-    logic [0:0] m00_axi_awuser;
-    logic m00_axi_awvalid;
-    logic m00_axi_awready;
-
-    logic [DATA_WIDTH-1:0] m00_axi_wdata;
-    logic [(DATA_WIDTH/8)-1:0] m00_axi_wstrb;
-    logic m00_axi_wlast;
-    logic [0:0] m00_axi_wuser;
-    logic m00_axi_wvalid;
-    logic m00_axi_wready;
-
-    logic [0:0] m00_axi_bid;
-    logic [1:0] m00_axi_bresp;
-    logic [0:0] m00_axi_buser;
-    logic m00_axi_bvalid;
-    logic m00_axi_bready;
-
     logic [0:0] m00_axi_arid;
     logic [ADDR_WIDTH-1:0] m00_axi_araddr;
     logic [7:0] m00_axi_arlen;
@@ -54,7 +28,6 @@ module axi_master_dram_tb;
     logic [3:0] m00_axi_arcache;
     logic [2:0] m00_axi_arprot;
     logic [3:0] m00_axi_arqos;
-    logic [0:0] m00_axi_aruser;
     logic m00_axi_arvalid;
     logic m00_axi_arready;
 
@@ -62,30 +35,31 @@ module axi_master_dram_tb;
     logic [DATA_WIDTH-1:0] m00_axi_rdata;
     logic [1:0] m00_axi_rresp;
     logic m00_axi_rlast;
-    logic [0:0] m00_axi_ruser;
     logic m00_axi_rvalid;
     logic m00_axi_rready;
 
     logic read_active_q;
     logic active_error_q;
     logic inject_error;
+    logic [1:0] ar_delay_q;
+    logic r_gap_q;
+    logic r_gap_inserted_q;
     logic [$clog2(AXI_BURST_LEN)-1:0] beat_count_q;
     logic [7:0] active_sequence_q;
     int ready_stall_count_q;
+    int ar_stall_count_q;
+    int r_gap_count_q;
     int ar_count_q;
     int stream_count_q;
     int stream_valid_only_count_q;
+    logic txn_done_prev_q;
+    logic error_prev_q;
 
     axi_master_dram_v1_0 #(
         .C_M00_AXI_TARGET_SLAVE_BASE_ADDR(AXI_BASE_ADDR),
         .C_M00_AXI_BURST_LEN(AXI_BURST_LEN),
         .C_M00_AXI_ADDR_WIDTH(ADDR_WIDTH),
-        .C_M00_AXI_DATA_WIDTH(DATA_WIDTH),
-        .C_M00_AXI_AWUSER_WIDTH(1),
-        .C_M00_AXI_ARUSER_WIDTH(1),
-        .C_M00_AXI_WUSER_WIDTH(1),
-        .C_M00_AXI_RUSER_WIDTH(1),
-        .C_M00_AXI_BUSER_WIDTH(1)
+        .C_M00_AXI_DATA_WIDTH(DATA_WIDTH)
     ) u_dut (
         .axi_txn_addr          (axi_txn_addr),
         .axi_stream_valid      (axi_stream_valid),
@@ -96,29 +70,6 @@ module axi_master_dram_tb;
         .m00_axi_error         (m00_axi_error),
         .m00_axi_aclk          (clk),
         .m00_axi_aresetn       (rst_n),
-        .m00_axi_awid          (m00_axi_awid),
-        .m00_axi_awaddr        (m00_axi_awaddr),
-        .m00_axi_awlen         (m00_axi_awlen),
-        .m00_axi_awsize        (m00_axi_awsize),
-        .m00_axi_awburst       (m00_axi_awburst),
-        .m00_axi_awlock        (m00_axi_awlock),
-        .m00_axi_awcache       (m00_axi_awcache),
-        .m00_axi_awprot        (m00_axi_awprot),
-        .m00_axi_awqos         (m00_axi_awqos),
-        .m00_axi_awuser        (m00_axi_awuser),
-        .m00_axi_awvalid       (m00_axi_awvalid),
-        .m00_axi_awready       (m00_axi_awready),
-        .m00_axi_wdata         (m00_axi_wdata),
-        .m00_axi_wstrb         (m00_axi_wstrb),
-        .m00_axi_wlast         (m00_axi_wlast),
-        .m00_axi_wuser         (m00_axi_wuser),
-        .m00_axi_wvalid        (m00_axi_wvalid),
-        .m00_axi_wready        (m00_axi_wready),
-        .m00_axi_bid           (m00_axi_bid),
-        .m00_axi_bresp         (m00_axi_bresp),
-        .m00_axi_buser         (m00_axi_buser),
-        .m00_axi_bvalid        (m00_axi_bvalid),
-        .m00_axi_bready        (m00_axi_bready),
         .m00_axi_arid          (m00_axi_arid),
         .m00_axi_araddr        (m00_axi_araddr),
         .m00_axi_arlen         (m00_axi_arlen),
@@ -128,20 +79,39 @@ module axi_master_dram_tb;
         .m00_axi_arcache       (m00_axi_arcache),
         .m00_axi_arprot        (m00_axi_arprot),
         .m00_axi_arqos         (m00_axi_arqos),
-        .m00_axi_aruser        (m00_axi_aruser),
         .m00_axi_arvalid       (m00_axi_arvalid),
         .m00_axi_arready       (m00_axi_arready),
         .m00_axi_rid           (m00_axi_rid),
         .m00_axi_rdata         (m00_axi_rdata),
         .m00_axi_rresp         (m00_axi_rresp),
         .m00_axi_rlast         (m00_axi_rlast),
-        .m00_axi_ruser         (m00_axi_ruser),
         .m00_axi_rvalid        (m00_axi_rvalid),
         .m00_axi_rready        (m00_axi_rready)
     );
 
-    assign m00_axi_arready = !read_active_q;
-    assign m00_axi_rvalid  = read_active_q;
+    axi_read_protocol_checker #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH)
+    ) u_axi_read_checker (
+        .ACLK(clk),
+        .ARESETn(rst_n),
+        .ARADDR(m00_axi_araddr),
+        .ARLEN(m00_axi_arlen),
+        .ARSIZE(m00_axi_arsize),
+        .ARBURST(m00_axi_arburst),
+        .ARVALID(m00_axi_arvalid),
+        .ARREADY(m00_axi_arready),
+        .RDATA(m00_axi_rdata),
+        .RRESP(m00_axi_rresp),
+        .RLAST(m00_axi_rlast),
+        .RVALID(m00_axi_rvalid),
+        .RREADY(m00_axi_rready)
+    );
+
+    // Delay every AR handshake so ARVALID/payload hold behavior is exercised.
+    assign m00_axi_arready = !read_active_q && (ar_delay_q == 2);
+    // Insert one legal RVALID bubble in every burst.
+    assign m00_axi_rvalid  = read_active_q && !r_gap_q;
     assign m00_axi_rdata   =
         32'hA000_0000 |
         (DATA_WIDTH'(active_sequence_q) << 8) |
@@ -149,24 +119,53 @@ module axi_master_dram_tb;
     assign m00_axi_rresp =
         (active_error_q && (beat_count_q == 1)) ? 2'b10 : 2'b00;
     assign m00_axi_rlast =
-        read_active_q && (beat_count_q == AXI_BURST_LEN - 1);
+        m00_axi_rvalid && (beat_count_q == AXI_BURST_LEN - 1);
     assign m00_axi_rid    = 1'b0;
-    assign m00_axi_ruser  = 1'b0;
-
     always #5 clk = ~clk;
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             read_active_q     <= 1'b0;
             active_error_q    <= 1'b0;
+            ar_delay_q        <= '0;
+            r_gap_q           <= 1'b0;
+            r_gap_inserted_q  <= 1'b0;
             beat_count_q      <= '0;
             active_sequence_q <= 8'd0;
             axi_stream_ready  <= 1'b1;
             ready_stall_count_q <= 0;
+            ar_stall_count_q  <= 0;
+            r_gap_count_q     <= 0;
             ar_count_q        <= 0;
             stream_count_q    <= 0;
             stream_valid_only_count_q <= 0;
+            txn_done_prev_q   <= 1'b0;
+            error_prev_q      <= 1'b0;
         end else begin
+            txn_done_prev_q <= m00_axi_txn_done;
+            error_prev_q    <= m00_axi_error;
+
+            if (m00_axi_txn_done && m00_axi_error) begin
+                $fatal(1, "AXI read master asserted done and error together");
+            end
+            if (txn_done_prev_q && m00_axi_txn_done) begin
+                $fatal(1, "AXI read done pulse lasted more than one cycle");
+            end
+            if (error_prev_q && m00_axi_error) begin
+                $fatal(1, "AXI read error pulse lasted more than one cycle");
+            end
+
+            if (!read_active_q) begin
+                if (m00_axi_arvalid && !m00_axi_arready) begin
+                    ar_stall_count_q <= ar_stall_count_q + 1;
+                    if (ar_delay_q != 2) begin
+                        ar_delay_q <= ar_delay_q + 1'b1;
+                    end
+                end else begin
+                    ar_delay_q <= '0;
+                end
+            end
+
             if (read_active_q &&
                 (beat_count_q == 2) &&
                 (ready_stall_count_q < 2)) begin
@@ -174,6 +173,17 @@ module axi_master_dram_tb;
                 ready_stall_count_q <= ready_stall_count_q + 1;
             end else begin
                 axi_stream_ready <= 1'b1;
+            end
+
+            if (r_gap_q) begin
+                r_gap_q <= 1'b0;
+                r_gap_count_q <= r_gap_count_q + 1;
+            end else if (read_active_q &&
+                         !r_gap_inserted_q &&
+                         (beat_count_q == 4) &&
+                         m00_axi_rvalid && m00_axi_rready) begin
+                r_gap_q <= 1'b1;
+                r_gap_inserted_q <= 1'b1;
             end
 
             if (m00_axi_arvalid && m00_axi_arready) begin
@@ -186,15 +196,22 @@ module axi_master_dram_tb;
                         $fatal(1, "AXI retry address changed");
                     3: if (m00_axi_araddr != AXI_BASE_ADDR + 32'h60)
                         $fatal(1, "Unexpected post-retry AXI read address");
+                    4: if (m00_axi_araddr != AXI_BASE_ADDR + 32'hfe0)
+                        $fatal(1, "Unexpected boundary AXI read address");
                     default: $fatal(1, "Unexpected extra AXI read request");
                 endcase
 
                 if (m00_axi_arlen != AXI_BURST_LEN - 1) begin
                     $fatal(1, "AXI burst length changed");
                 end
+                if (m00_axi_arsize != 3'd2 || m00_axi_arburst != 2'b01) begin
+                    $fatal(1, "AXI read size/burst configuration changed");
+                end
 
                 read_active_q     <= 1'b1;
                 active_error_q    <= inject_error;
+                r_gap_q           <= 1'b0;
+                r_gap_inserted_q  <= 1'b0;
                 beat_count_q      <= '0;
                 active_sequence_q <= ar_count_q[7:0];
                 ar_count_q        <= ar_count_q + 1;
@@ -224,9 +241,6 @@ module axi_master_dram_tb;
                 stream_count_q <= stream_count_q + 1;
             end
 
-            if (m00_axi_awvalid || m00_axi_wvalid) begin
-                $fatal(1, "Read-only AXI master drove a write transaction");
-            end
         end
     end
 
@@ -259,13 +273,6 @@ module axi_master_dram_tb;
         axi_txn_addr         = '0;
         m00_axi_init_axi_txn = 1'b0;
         inject_error         = 1'b0;
-        m00_axi_awready      = 1'b0;
-        m00_axi_wready       = 1'b0;
-        m00_axi_bid          = 1'b0;
-        m00_axi_bresp        = 2'b00;
-        m00_axi_buser        = 1'b0;
-        m00_axi_bvalid       = 1'b0;
-
         repeat (3) @(posedge clk);
         @(negedge clk);
         rst_n = 1'b1;
@@ -274,17 +281,25 @@ module axi_master_dram_tb;
         start_transaction(32'h40, 1'b1);
         start_transaction(32'h40, 1'b0);
         start_transaction(32'h60, 1'b0);
+        // Eight 32-bit beats starting at 0x1fe0 end exactly at 0x1fff.
+        start_transaction(32'hfe0, 1'b0);
 
-        if (ar_count_q != 4) begin
+        if (ar_count_q != 5) begin
             $fatal(1, "Unexpected AXI read transaction count");
         end
 
-        if (stream_count_q != 4 * AXI_BURST_LEN) begin
+        if (stream_count_q != 5 * AXI_BURST_LEN) begin
             $fatal(1, "Unexpected AXI stream beat count");
         end
 
         if (stream_valid_only_count_q == 0) begin
             $fatal(1, "AXI stream ready backpressure was not exercised");
+        end
+        if (ar_stall_count_q == 0) begin
+            $fatal(1, "AXI AR backpressure was not exercised");
+        end
+        if (r_gap_count_q == 0) begin
+            $fatal(1, "AXI RVALID bubbles were not exercised");
         end
 
         $display("AXI_MASTER_DRAM_STREAM_BURST_TEST_PASS");

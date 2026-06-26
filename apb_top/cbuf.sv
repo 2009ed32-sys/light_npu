@@ -90,43 +90,37 @@ module cbuf #(
     genvar data_bank;
     generate
         for (data_bank = 0; data_bank < BANK_NUM; data_bank = data_bank + 1) begin : g_data_bank
-            (* ram_style = "block", dont_touch = "true" *)
+            (* ram_style = "block" *)
             logic [BANK_WORD_WIDTH-1:0] mem [0:DATA_DEPTH-1];
             logic [BANK_WORD_WIDTH-1:0] rd_data_q;
+            logic [BANK_ADDR_WIDTH-1:0] rd_bank_addr_w;
+            logic [BANK_ADDR_WIDTH-1:0] wr_bank_addr_w;
+            logic [DATA_WIDTH-1:0]      wr_bank_data_w;
+
+            assign rd_bank_addr_w = data_rd_bank_addr[
+                (data_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
+            ];
+            assign wr_bank_addr_w = data_wr_bank_addr[
+                (data_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
+            ];
+            assign wr_bank_data_w = data_wr_bank_data[
+                (data_bank*DATA_WIDTH)+:DATA_WIDTH
+            ];
 
             always_ff @(posedge clk) begin
-                logic [BANK_ADDR_WIDTH-1:0] rd_bank_addr;
-                logic [BANK_ADDR_WIDTH-1:0] wr_bank_addr;
-                logic [DATA_WIDTH-1:0]      wr_bank_data;
-
                 if (!rst_n) begin
                     rd_data_q <= '0;
                 end else begin
-                    rd_bank_addr =
-                    data_rd_bank_addr[
-                        (data_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
-                    ];
-
-                    wr_bank_addr =
-                    data_wr_bank_addr[
-                        (data_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
-                    ];
-
-                    wr_bank_data =
-                    data_wr_bank_data[
-                        (data_bank*DATA_WIDTH)+:DATA_WIDTH
-                    ];
-
                     if (data_wr_bank_en[data_bank] &&
-                        data_bank_addr_in_range(wr_bank_addr)) begin
-                        mem[wr_bank_addr[DATA_MEM_ADDR_WIDTH-1:0]] <=
-                            wr_bank_data;
+                        data_bank_addr_in_range(wr_bank_addr_w)) begin
+                        mem[wr_bank_addr_w[DATA_MEM_ADDR_WIDTH-1:0]] <=
+                            wr_bank_data_w;
                     end
 
                     if (data_rd_en &&
                         data_rd_bank_en[data_bank] &&
-                        data_bank_addr_in_range(rd_bank_addr)) begin
-                        rd_data_q <= mem[rd_bank_addr[DATA_MEM_ADDR_WIDTH-1:0]];
+                        data_bank_addr_in_range(rd_bank_addr_w)) begin
+                        rd_data_q <= mem[rd_bank_addr_w[DATA_MEM_ADDR_WIDTH-1:0]];
                     end
                 end
             end
@@ -138,43 +132,37 @@ module cbuf #(
     genvar weight_bank;
     generate
         for (weight_bank = 0; weight_bank < BANK_NUM; weight_bank = weight_bank + 1) begin : g_weight_bank
-            (* ram_style = "block", dont_touch = "true" *)
+            (* ram_style = "block" *)
             logic [BANK_WORD_WIDTH-1:0] mem [0:WEIGHT_DEPTH-1];
             logic [BANK_WORD_WIDTH-1:0] rd_data_q;
+            logic [BANK_ADDR_WIDTH-1:0] rd_bank_addr_w;
+            logic [BANK_ADDR_WIDTH-1:0] wr_bank_addr_w;
+            logic [DATA_WIDTH-1:0]      wr_bank_data_w;
+
+            assign rd_bank_addr_w = weight_rd_bank_addr[
+                (weight_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
+            ];
+            assign wr_bank_addr_w = weight_wr_bank_addr[
+                (weight_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
+            ];
+            assign wr_bank_data_w = weight_wr_bank_data[
+                (weight_bank*DATA_WIDTH)+:DATA_WIDTH
+            ];
 
             always_ff @(posedge clk) begin
-                logic [BANK_ADDR_WIDTH-1:0] rd_bank_addr;
-                logic [BANK_ADDR_WIDTH-1:0] wr_bank_addr;
-                logic [DATA_WIDTH-1:0]      wr_bank_data;
-
                 if (!rst_n) begin
                     rd_data_q <= '0;
                 end else begin
-                    rd_bank_addr =
-                    weight_rd_bank_addr[
-                        (weight_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
-                    ];
-
-                    wr_bank_addr =
-                    weight_wr_bank_addr[
-                    (weight_bank*BANK_ADDR_WIDTH)+:BANK_ADDR_WIDTH
-                    ];
-
-                    wr_bank_data =
-                    weight_wr_bank_data[
-                    (weight_bank*DATA_WIDTH)+:DATA_WIDTH
-                    ];
-
                     if (weight_wr_bank_en[weight_bank] &&
-                        weight_bank_addr_in_range(wr_bank_addr)) begin
-                        mem[wr_bank_addr[WEIGHT_MEM_ADDR_WIDTH-1:0]] <=
-                        wr_bank_data;
+                        weight_bank_addr_in_range(wr_bank_addr_w)) begin
+                        mem[wr_bank_addr_w[WEIGHT_MEM_ADDR_WIDTH-1:0]] <=
+                            wr_bank_data_w;
                     end
 
                     if (weight_rd_en &&
                         weight_rd_bank_en[weight_bank] &&
-                        weight_bank_addr_in_range(rd_bank_addr)) begin
-                        rd_data_q <= mem[rd_bank_addr[WEIGHT_MEM_ADDR_WIDTH-1:0]];
+                        weight_bank_addr_in_range(rd_bank_addr_w)) begin
+                        rd_data_q <= mem[rd_bank_addr_w[WEIGHT_MEM_ADDR_WIDTH-1:0]];
                     end
                 end
             end

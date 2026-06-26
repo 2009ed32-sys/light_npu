@@ -10,12 +10,7 @@ module sdp_write_master_v1_0_M00_AXI #(
     parameter C_M_TARGET_SLAVE_BASE_ADDR = 32'h00000000,
     parameter integer C_M_AXI_ID_WIDTH   = 1,
     parameter integer C_M_AXI_ADDR_WIDTH = 32,
-    parameter integer C_M_AXI_DATA_WIDTH = 32,
-    parameter integer C_M_AXI_AWUSER_WIDTH = 0,
-    parameter integer C_M_AXI_ARUSER_WIDTH = 0,
-    parameter integer C_M_AXI_WUSER_WIDTH  = 0,
-    parameter integer C_M_AXI_RUSER_WIDTH  = 0,
-    parameter integer C_M_AXI_BUSER_WIDTH  = 0
+    parameter integer C_M_AXI_DATA_WIDTH = 32
 ) (
     input wire [C_M_AXI_ADDR_WIDTH-1:0] WRITE_REQ_ADDR,
     input wire [C_M_AXI_DATA_WIDTH-1:0] WRITE_REQ_DATA,
@@ -24,7 +19,6 @@ module sdp_write_master_v1_0_M00_AXI #(
     output wire WRITE_REQ_READY,
     input wire WRITE_REQ_LAST,
 
-    output wire WRITE_BUSY,
     output reg  WRITE_DONE,
     output reg  ERROR,
 
@@ -40,49 +34,27 @@ module sdp_write_master_v1_0_M00_AXI #(
     output wire [3:0] M_AXI_AWCACHE,
     output wire [2:0] M_AXI_AWPROT,
     output wire [3:0] M_AXI_AWQOS,
-    output wire [C_M_AXI_AWUSER_WIDTH-1:0] M_AXI_AWUSER,
     output wire M_AXI_AWVALID,
     input wire M_AXI_AWREADY,
 
     output wire [C_M_AXI_DATA_WIDTH-1:0] M_AXI_WDATA,
     output wire [(C_M_AXI_DATA_WIDTH/8)-1:0] M_AXI_WSTRB,
     output wire M_AXI_WLAST,
-    output wire [C_M_AXI_WUSER_WIDTH-1:0] M_AXI_WUSER,
     output wire M_AXI_WVALID,
     input wire M_AXI_WREADY,
 
     input wire [C_M_AXI_ID_WIDTH-1:0] M_AXI_BID,
     input wire [1:0] M_AXI_BRESP,
-    input wire [C_M_AXI_BUSER_WIDTH-1:0] M_AXI_BUSER,
     input wire M_AXI_BVALID,
-    output wire M_AXI_BREADY,
-
-    output wire [C_M_AXI_ID_WIDTH-1:0] M_AXI_ARID,
-    output wire [C_M_AXI_ADDR_WIDTH-1:0] M_AXI_ARADDR,
-    output wire [7:0] M_AXI_ARLEN,
-    output wire [2:0] M_AXI_ARSIZE,
-    output wire [1:0] M_AXI_ARBURST,
-    output wire M_AXI_ARLOCK,
-    output wire [3:0] M_AXI_ARCACHE,
-    output wire [2:0] M_AXI_ARPROT,
-    output wire [3:0] M_AXI_ARQOS,
-    output wire [C_M_AXI_ARUSER_WIDTH-1:0] M_AXI_ARUSER,
-    output wire M_AXI_ARVALID,
-    input wire M_AXI_ARREADY,
-
-    input wire [C_M_AXI_ID_WIDTH-1:0] M_AXI_RID,
-    input wire [C_M_AXI_DATA_WIDTH-1:0] M_AXI_RDATA,
-    input wire [1:0] M_AXI_RRESP,
-    input wire M_AXI_RLAST,
-    input wire [C_M_AXI_RUSER_WIDTH-1:0] M_AXI_RUSER,
-    input wire M_AXI_RVALID,
-    output wire M_AXI_RREADY
+    output wire M_AXI_BREADY
 );
 
     function integer clogb2(input integer bit_depth);
+        integer depth;
         begin
-            for (clogb2 = 0; bit_depth > 0; clogb2 = clogb2 + 1) begin
-                bit_depth = bit_depth >> 1;
+            depth = bit_depth;
+            for (clogb2 = 0; depth > 0; clogb2 = clogb2 + 1) begin
+                depth = depth >> 1;
             end
         end
     endfunction
@@ -106,7 +78,6 @@ module sdp_write_master_v1_0_M00_AXI #(
     wire b_fire_w;
 
     assign WRITE_REQ_READY = (state_q == ST_IDLE);
-    assign WRITE_BUSY = (state_q != ST_IDLE);
     assign req_fire_w = WRITE_REQ_VALID && WRITE_REQ_READY;
 
     assign aw_fire_w = M_AXI_AWVALID && M_AXI_AWREADY;
@@ -122,28 +93,13 @@ module sdp_write_master_v1_0_M00_AXI #(
     assign M_AXI_AWCACHE = 4'b0010;
     assign M_AXI_AWPROT  = 3'b000;
     assign M_AXI_AWQOS   = 4'b0000;
-    assign M_AXI_AWUSER  = 'b0;
     assign M_AXI_AWVALID = axi_awvalid_q;
 
     assign M_AXI_WDATA   = req_data_q;
     assign M_AXI_WSTRB   = req_strb_q;
     assign M_AXI_WLAST   = 1'b1;
-    assign M_AXI_WUSER   = 'b0;
     assign M_AXI_WVALID  = axi_wvalid_q;
     assign M_AXI_BREADY  = axi_bready_q;
-
-    assign M_AXI_ARID    = {C_M_AXI_ID_WIDTH{1'b0}};
-    assign M_AXI_ARADDR  = {C_M_AXI_ADDR_WIDTH{1'b0}};
-    assign M_AXI_ARLEN   = 8'd0;
-    assign M_AXI_ARSIZE  = clogb2((C_M_AXI_DATA_WIDTH/8)-1);
-    assign M_AXI_ARBURST = 2'b01;
-    assign M_AXI_ARLOCK  = 1'b0;
-    assign M_AXI_ARCACHE = 4'b0010;
-    assign M_AXI_ARPROT  = 3'b000;
-    assign M_AXI_ARQOS   = 4'b0000;
-    assign M_AXI_ARUSER  = 'b0;
-    assign M_AXI_ARVALID = 1'b0;
-    assign M_AXI_RREADY  = 1'b0;
 
     always @(posedge M_AXI_ACLK) begin
         if (M_AXI_ARESETN == 1'b0) begin
@@ -199,7 +155,8 @@ module sdp_write_master_v1_0_M00_AXI #(
                         axi_bready_q <= 1'b0;
                         state_q      <= ST_IDLE;
 
-                        if (M_AXI_BRESP != 2'b00) begin
+                        if ((M_AXI_BRESP != 2'b00) ||
+                            (M_AXI_BID != {C_M_AXI_ID_WIDTH{1'b0}})) begin
                             ERROR <= 1'b1;
                         end else if (req_last_q) begin
                             WRITE_DONE <= 1'b1;

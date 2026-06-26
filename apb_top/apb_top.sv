@@ -19,8 +19,7 @@ module apb_top #(
     parameter int MACCELL_NUM      = 8,
     parameter int MACLANE_NUM      = CBUF_WORD_WIDTH / ELEMENT_WIDTH,
     parameter int CSC_TAG_WIDTH    = 32,
-    parameter int CMAC_PSUM_WIDTH  = 32,
-    parameter int DEBUG_WIDTH      = 256
+    parameter int CMAC_PSUM_WIDTH  = 32
 ) (
     input  logic                          PCLK,
     input  logic                          PRESETn,
@@ -34,7 +33,6 @@ module apb_top #(
     output logic                          PREADY,
     output logic                          PSLVERR,
 
-    output logic                          axi_load_start,
     output logic [ADDR_WIDTH-1:0]         axi_txn_addr,
     output logic                          axi_init_txn,
     input  logic                          axi_stream_valid,
@@ -42,7 +40,6 @@ module apb_top #(
     input  logic [AXI_DATA_WIDTH-1:0]     axi_stream_data,
     input  logic                          axi_txn_done,
     input  logic                          axi_error,
-    output logic                          axi_stream_sel,
     output logic                          sdp_write_valid,
     input  logic                          sdp_write_ready,
     output logic [ADDR_WIDTH-1:0]         sdp_write_addr,
@@ -50,10 +47,11 @@ module apb_top #(
     output logic [(CMAC_PSUM_WIDTH/8)-1:0] sdp_write_strb,
     output logic                          sdp_write_last,
     input  logic                          sdp_write_done,
-    input  logic                          sdp_write_error,
-    output logic [DEBUG_WIDTH-1:0] debug_port,
-    output logic                   debug_valid
+    input  logic                          sdp_write_error
 );
+
+    logic axi_load_start_unused;
+    logic axi_stream_sel_unused;
 
     logic [APB_DATA_WIDTH-1:0] cdma_control_w;
     logic [APB_DATA_WIDTH-1:0] cdma_status_w;
@@ -61,10 +59,12 @@ module apb_top #(
     logic [APB_DATA_WIDTH-1:0] data_matrix_height_w;
     logic [APB_DATA_WIDTH-1:0] data_channel_count_w;
     logic [APB_DATA_WIDTH-1:0] data_dst_base_w;
+    logic [APB_DATA_WIDTH-1:0] data_src_base_addr_w;
     logic [APB_DATA_WIDTH-1:0] weight_matrix_width_w;
     logic [APB_DATA_WIDTH-1:0] weight_matrix_height_w;
     logic [APB_DATA_WIDTH-1:0] weight_channel_count_w;
     logic [APB_DATA_WIDTH-1:0] weight_dst_base_w;
+    logic [APB_DATA_WIDTH-1:0] weight_src_base_addr_w;
     logic [APB_DATA_WIDTH-1:0] csc_control_w;
     logic [APB_DATA_WIDTH-1:0] csc_status_w;
     logic [APB_DATA_WIDTH-1:0] csc_atomics_w;
@@ -88,7 +88,7 @@ module apb_top #(
     apb3_slave #(
         .ADDR_WIDTH(APB_ADDR_WIDTH),
         .DATA_WIDTH(APB_DATA_WIDTH),
-        .SLVREG_NUM(29)
+        .SLVREG_NUM(31)
     ) u_apb_csb (
         .PCLK                   (PCLK),
         .PRESETn                (PRESETn),
@@ -107,10 +107,12 @@ module apb_top #(
         .DATA_MATRIX_HEIGHT     (data_matrix_height_w),
         .DATA_CHANNEL_COUNT     (data_channel_count_w),
         .DATA_DST_BASE          (data_dst_base_w),
+        .DATA_SRC_BASE_ADDR     (data_src_base_addr_w),
         .WEIGHT_MATRIX_WIDTH    (weight_matrix_width_w),
         .WEIGHT_MATRIX_HEIGHT   (weight_matrix_height_w),
         .WEIGHT_CHANNEL_COUNT   (weight_channel_count_w),
         .WEIGHT_DST_BASE        (weight_dst_base_w),
+        .WEIGHT_SRC_BASE_ADDR   (weight_src_base_addr_w),
         .CSC_CONTROL            (csc_control_w),
         .CSC_STATUS             (csc_status_w),
         .CSC_ATOMICS            (csc_atomics_w),
@@ -145,8 +147,7 @@ module apb_top #(
         .MACCELL_NUM     (MACCELL_NUM),
         .MACLANE_NUM     (MACLANE_NUM),
         .CSC_TAG_WIDTH   (CSC_TAG_WIDTH),
-        .CMAC_PSUM_WIDTH (CMAC_PSUM_WIDTH),
-        .DEBUG_WIDTH     (DEBUG_WIDTH)
+        .CMAC_PSUM_WIDTH (CMAC_PSUM_WIDTH)
     ) u_convcore (
         .clk                    (PCLK),
         .rst_n                  (PRESETn),
@@ -157,10 +158,12 @@ module apb_top #(
         .DATA_MATRIX_HEIGHT     (data_matrix_height_w),
         .DATA_CHANNEL_COUNT     (data_channel_count_w),
         .DATA_DST_BASE          (data_dst_base_w),
+        .DATA_SRC_BASE_ADDR     (data_src_base_addr_w),
         .WEIGHT_MATRIX_WIDTH    (weight_matrix_width_w),
         .WEIGHT_MATRIX_HEIGHT   (weight_matrix_height_w),
         .WEIGHT_CHANNEL_COUNT   (weight_channel_count_w),
         .WEIGHT_DST_BASE        (weight_dst_base_w),
+        .WEIGHT_SRC_BASE_ADDR   (weight_src_base_addr_w),
 
         .CSC_CONTROL            (csc_control_w),
         .CSC_STATUS             (csc_status_w),
@@ -182,7 +185,7 @@ module apb_top #(
         .CACC_D_SURF_STRIDE     (cacc_d_surf_stride_w),
         .CACC_D_DATAOUT_MAP     (cacc_d_dataout_map_w),
 
-        .axi_load_start         (axi_load_start),
+        .axi_load_start         (axi_load_start_unused),
         .axi_txn_addr           (axi_txn_addr),
         .axi_init_txn           (axi_init_txn),
         .axi_stream_valid       (axi_stream_valid),
@@ -190,7 +193,7 @@ module apb_top #(
         .axi_stream_data        (axi_stream_data),
         .axi_txn_done           (axi_txn_done),
         .axi_error              (axi_error),
-        .axi_stream_sel         (axi_stream_sel),
+        .axi_stream_sel         (axi_stream_sel_unused),
         .sdp_write_valid        (sdp_write_valid),
         .sdp_write_ready        (sdp_write_ready),
         .sdp_write_addr         (sdp_write_addr),

@@ -15,10 +15,12 @@ module cdma_axi_transaction_ctrl #(
     input  logic                  rst_n,
 
     input  logic                  data_fill_request,
+    input  logic [ADDR_WIDTH-1:0] data_src_base_addr,
     input  logic [LEN_WIDTH-1:0]  data_load_total_words,
     output logic                  data_fill_done,
 
     input  logic                  weight_fill_request,
+    input  logic [ADDR_WIDTH-1:0] weight_src_base_addr,
     input  logic [LEN_WIDTH-1:0]  weight_load_total_words,
     output logic                  weight_fill_done,
 
@@ -122,11 +124,15 @@ module cdma_axi_transaction_ctrl #(
                 current_addr_d = '0;
 
                 if (data_fill_request) begin
+                    current_addr_d =
+                        data_src_base_addr;
                     remaining_bursts_d =
                         calc_total_bursts(data_load_total_words);
                     stream_sel_d = 1'b0;
                     state_d       = ST_LOAD_START;
                 end else if (weight_fill_request) begin
+                    current_addr_d =
+                        weight_src_base_addr;
                     remaining_bursts_d =
                         calc_total_bursts(weight_load_total_words);
                     stream_sel_d = 1'b1;

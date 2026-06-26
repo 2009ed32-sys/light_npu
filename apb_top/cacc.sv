@@ -51,22 +51,13 @@ module cacc #(
     localparam int DELIVERY_DATA_WIDTH = MACCELL_NUM * PSUM_WIDTH;
 
     logic prepare_pending_q;
-    logic prepare_read_q;
-    logic [MACCELL_NUM-1:0] prepare_mask_q;
-    logic prepare_acc_clear_q;
     logic prepare_acc_last_q;
 
-    logic [MACCELL_NUM-1:0] psum_valid_mask_q;
-    logic [DELIVERY_DATA_WIDTH-1:0] psum_data_q;
-    logic psum_acc_clear_q;
-    logic psum_acc_last_q;
-    logic [TAG_WIDTH-1:0] psum_tag_q;
     logic [CFG_WIDTH-1:0] d_dataout_size_0_q;
     logic [CFG_WIDTH-1:0] d_dataout_size_1_q;
     logic [CFG_WIDTH-1:0] d_dataout_addr_q;
     logic [CFG_WIDTH-1:0] d_line_stride_q;
     logic [CFG_WIDTH-1:0] d_surf_stride_q;
-    logic [CFG_WIDTH-1:0] d_dataout_map_q;
 
     logic op_done_q;
     logic op_error_q;
@@ -152,11 +143,11 @@ module cacc #(
         .op_start          (op_start),
         .op_done           (rd_done_unused),
         .op_error          (rd_error_w),
-        .d_dataout_size_0  (d_dataout_size_0),
-        .d_dataout_size_1  (d_dataout_size_1),
-        .d_dataout_addr    (d_dataout_addr),
-        .d_line_stride     (d_line_stride),
-        .d_surf_stride     (d_surf_stride),
+        .d_dataout_size_0  (d_dataout_size_0_q),
+        .d_dataout_size_1  (d_dataout_size_1_q),
+        .d_dataout_addr    (d_dataout_addr_q),
+        .d_line_stride     (d_line_stride_q),
+        .d_surf_stride     (d_surf_stride_q),
         .fifo_valid        (delivery_pop_valid_w),
         .fifo_ready        (delivery_pop_ready_w),
         .fifo_mask         (delivery_pop_mask_w),
@@ -177,40 +168,22 @@ module cacc #(
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             prepare_pending_q <= 1'b0;
-            prepare_read_q <= 1'b0;
-            prepare_mask_q <= '0;
-            prepare_acc_clear_q <= 1'b0;
             prepare_acc_last_q <= 1'b0;
-            psum_valid_mask_q <= '0;
-            psum_data_q <= '0;
-            psum_acc_clear_q <= 1'b0;
-            psum_acc_last_q <= 1'b0;
-            psum_tag_q <= '0;
             d_dataout_size_0_q <= '0;
             d_dataout_size_1_q <= '0;
             d_dataout_addr_q <= '0;
             d_line_stride_q <= '0;
             d_surf_stride_q <= '0;
-            d_dataout_map_q <= '0;
             op_done_q <= 1'b0;
             op_error_q <= 1'b0;
         end else if (!op_enable || op_start) begin
             prepare_pending_q <= 1'b0;
-            prepare_read_q <= 1'b0;
-            prepare_mask_q <= '0;
-            prepare_acc_clear_q <= 1'b0;
             prepare_acc_last_q <= 1'b0;
-            psum_valid_mask_q <= '0;
-            psum_data_q <= '0;
-            psum_acc_clear_q <= 1'b0;
-            psum_acc_last_q <= 1'b0;
-            psum_tag_q <= '0;
             d_dataout_size_0_q <= d_dataout_size_0;
             d_dataout_size_1_q <= d_dataout_size_1;
             d_dataout_addr_q <= d_dataout_addr;
             d_line_stride_q <= d_line_stride;
             d_surf_stride_q <= d_surf_stride;
-            d_dataout_map_q <= d_dataout_map;
             op_done_q <= 1'b0;
             op_error_q <= 1'b0;
         end else begin
@@ -225,19 +198,11 @@ module cacc #(
 
             if (prepare_accept_w && !prepare_overrun_w) begin
                 prepare_pending_q <= 1'b1;
-                prepare_read_q <= prepare_read;
-                prepare_mask_q <= prepare_mask;
-                prepare_acc_clear_q <= prepare_acc_clear;
                 prepare_acc_last_q <= prepare_acc_last;
             end
 
             if (psum_accept_w) begin
                 prepare_pending_q <= 1'b0;
-                psum_valid_mask_q <= psum_valid_mask;
-                psum_data_q <= psum_data;
-                psum_acc_clear_q <= psum_acc_clear;
-                psum_acc_last_q <= psum_acc_last;
-                psum_tag_q <= psum_tag;
                 op_done_q <= psum_acc_last;
             end
         end
